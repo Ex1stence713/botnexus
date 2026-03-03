@@ -1,24 +1,17 @@
-module.exports = {
-  name: 'clear',
-  description: 'Usuwa wiadomości z kanału',
-  execute(message, args) {
-    if (!message.member.permissions.has('ManageMessages')) {
-      message.reply('❌ Nie masz uprawnień do usuwania wiadomości!');
-      return;
-    }
+import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
 
-    const amount = parseInt(args[0]);
-    if (isNaN(amount) || amount < 1 || amount > 100) {
-      message.reply('❌ Podaj liczbę między 1 a 100!');
-      return;
-    }
+export const data = new SlashCommandBuilder()
+  .setName('clear')
+  .setDescription('Czyści wiadomości')
+  .addIntegerOption(option =>
+    option.setName('ilość')
+      .setDescription('Liczba wiadomości do usunięcia')
+      .setRequired(true))
+  .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages);
 
-    message.channel.bulkDelete(amount).then(() => {
-      message.reply(`✅ Usunęłem ${amount} wiadomości!`).then(msg => {
-        setTimeout(() => msg.delete(), 3000);
-      });
-    }).catch(() => {
-      message.reply('❌ Nie mogę usunąć wiadomości!');
-    });
-  },
-};
+export async function execute(interaction) {
+  const amount = interaction.options.getInteger('ilość');
+  const channel = interaction.channel;
+  await channel.bulkDelete(amount, true);
+  await interaction.reply({ content: `🧹 Usunięto ${amount} wiadomości.`, ephemeral: true });
+}

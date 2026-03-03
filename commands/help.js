@@ -1,82 +1,36 @@
-module.exports = {
-  name: 'help',
-  description: 'Wyświetla listę wszystkich komend',
-  execute(message, args) {
-    const helpEmbed = {
-      color: 0x0099ff,
-      title: '📚 Dostępne Komendy',
-      description: 'Oto wszystkie dostępne komendy:',
-      fields: [
-        {
-          name: '!ping',
-          value: 'Sprawdza ping bota',
-          inline: false,
-        },
-        {
-          name: '!hello',
-          value: 'Bot się przywituje',
-          inline: false,
-        },
-        {
-          name: '!user',
-          value: 'Pokazuje informacje o Tobie',
-          inline: false,
-        },
-        {
-          name: '!server',
-          value: 'Pokazuje informacje o serwerze',
-          inline: false,
-        },
-        {
-          name: '!echo [tekst]',
-          value: 'Bot powtórzy Twój tekst',
-          inline: false,
-        },
-        {
-          name: '!avatar [użytkownik]',
-          value: 'Pokazuje awatar użytkownika',
-          inline: false,
-        },
-        {
-          name: '!info',
-          value: 'Informacje o bocie',
-          inline: false,
-        },
-        {
-          name: '!kick [@użytkownik]',
-          value: 'Wyrzuca użytkownika z serwera (admin)',
-          inline: false,
-        },
-        {
-          name: '!ban [@użytkownik]',
-          value: 'Banuje użytkownika (admin)',
-          inline: false,
-        },
-        {
-          name: '!clear [liczba]',
-          value: 'Usuwa wiadomości (admin)',
-          inline: false,
-        },
-        {
-          name: '!random',
-          value: 'Generuje losową liczbę 1-100',
-          inline: false,
-        },
-        {
-          name: '!8ball [pytanie]',
-          value: 'Magiczna kula odpowiada na pytania',
-          inline: false,
-        },
-        {
-          name: '!help',
-          value: 'Wyświetla tę wiadomość',
-          inline: false,
-        },
-      ],
-      footer: {
-        text: 'Prefix: !',
-      },
-    };
-    message.reply({ embeds: [helpEmbed] });
-  },
-};
+﻿import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
+
+export const data = new SlashCommandBuilder()
+  .setName('help')
+  .setDescription('Wyświetla listę wszystkich komend.');
+
+export async function execute(interaction) {
+  const commands = Array.from(interaction.client.commands.values());
+  const categories = {};
+
+  for (const cmd of commands) {
+    const cat = interaction.client.categoryMap?.get(cmd.data.name) || 'general';
+    if (!categories[cat]) categories[cat] = [];
+    const desc = cmd.data?.description || '';
+    // format as `/name — description`
+    categories[cat].push(`/${cmd.data.name} — ${desc}`);
+  }
+
+  const helpEmbed = new EmbedBuilder()
+    .setTitle('📚 Wszystkie Komendy Bota')
+    .setDescription('Poniżej znajdziesz listę wszystkich dostępnych komend.')
+    .setColor(0x5865F2);
+
+  for (const [cat, list] of Object.entries(categories)) {
+    let title = '🌐 Komendy Ogólne';
+    if (cat.toLowerCase() === 'admin') title = '🛡️ Komendy Administracyjne';
+    else if (cat.toLowerCase() === 'info') title = 'ℹ️ Komendy Informacyjne';
+
+    helpEmbed.addFields({ name: title, value: list.join('\n') || 'Brak komend', inline: false });
+  }
+
+  helpEmbed.setFooter({ text: 'Wersja 1.0 • Aby uzyskać więcej informacji o danej komendzie, użyj /help' })
+    .setTimestamp();
+
+  await interaction.reply({ embeds: [helpEmbed], ephemeral: true });
+}

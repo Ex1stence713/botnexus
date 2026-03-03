@@ -1,28 +1,19 @@
-module.exports = {
-  name: 'ban',
-  description: 'Banuje użytkownika',
-  execute(message, args) {
-    if (!message.member.permissions.has('BanMembers')) {
-      message.reply('❌ Nie masz uprawnień do banowania użytkowników!');
-      return;
-    }
+import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
+export const data = new SlashCommandBuilder()
+  .setName('ban')
+  .setDescription('Banuje użytkownika')
+  .addUserOption(option => option.setName('target').setDescription('Użytkownik do zbanowania').setRequired(true))
+  .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers);
 
-    const user = message.mentions.users.first();
-    if (!user) {
-      message.reply('❌ Musisz wspomnieć użytkownika!');
-      return;
-    }
+export async function execute(interaction) {
+  const target = interaction.options.getUser('target');
+  const member = await interaction.guild.members.fetch(target.id).catch(() => null);
+  if (!member) return await interaction.reply({ content: 'Nie znaleziono użytkownika.', ephemeral: true });
 
-    const member = message.guild.members.cache.get(user.id);
-    if (!member) {
-      message.reply('❌ Użytkownik nie znaleziony na tym serwerze!');
-      return;
-    }
-
-    member.ban({ reason: 'Zbanowany przez bota' }).then(() => {
-      message.reply(`✅ ${user.tag} został zbanowany!`);
-    }).catch(() => {
-      message.reply('❌ Nie mogę zabanować tego użytkownika!');
-    });
-  },
-};
+  try {
+    await member.ban({ reason: `Zbanowany przez ${interaction.user.tag}` });
+    await interaction.reply(`🔨 ${target.tag} został zbanowany.`);
+  } catch (err) {
+    await interaction.reply({ content: `❌ Błąd: ${err.message}`, ephemeral: true });
+  }
+}

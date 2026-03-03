@@ -1,7 +1,11 @@
-module.exports = {
-  name: 'ping',
-  description: 'Sprawdza ping bota',
-  execute(message, args, client) {
-    message.reply(`🏓 Pong! Ping: ${client.ws.ping}ms`);
-  },
-};
+﻿import { SlashCommandBuilder } from 'discord.js';
+
+export const data = new SlashCommandBuilder()
+  .setName('ping')
+  .setDescription('Sprawdź ping bota');
+
+export async function execute(interaction) {
+  // calculate ping based on heartbeat latency
+  const ping = Math.round(interaction.client.ws.ping);
+  await interaction.reply(`🏓 Pong! Ping: ${ping}ms`);
+}
