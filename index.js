@@ -23,7 +23,11 @@ const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('
 
 for (const file of commandFiles) {
   const filePath = path.join(commandsPath, file);
-  const command = require(filePath);
+  let command = require(filePath);
+  // If module uses ES export default, unwrap it
+  if (command && command.default) {
+    command = command.default;
+  }
   if (command.name) {
     client.commands.set(command.name, command);
     console.log(`✅ Załadowana komenda: ${command.name}`);
