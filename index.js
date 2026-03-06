@@ -9,18 +9,18 @@ import {
     ButtonStyle, 
     PermissionsBitField,
     ChannelType,
-    MessageFlags // Nowość w v14.14+
+    MessageFlags,
+    ActivityType 
 } from 'discord.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
 import dotenv from 'dotenv';
-import { ActivityType } from 'discord.js'; // Dodaj ActivityType do importów na górze!
 
 dotenv.config();
 
 const token = process.env.BOT_TOKEN;
-const clientId = process.env.CLIENT_ID; // Dodaj to do .env!
+const clientId = process.env.CLIENT_ID;
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -47,7 +47,6 @@ for (const file of commandFiles) {
     const filePath = pathToFileURL(path.join(commandsPath, file)).href;
     try {
         const command = await import(filePath);
-        // Obsługa export default lub module.exports
         const cmdData = command.default || command;
         
         if ('data' in cmdData && 'execute' in cmdData) {
@@ -64,20 +63,30 @@ const rest = new REST({ version: '10' }).setToken(token);
 
 (async () => {
     try {
-        console.log('Rozpoczynanie odświeżania komend (/) aplikacji.');
+        console.log('🔄 Rozpoczynanie odświeżania komend (/) aplikacji.');
         await rest.put(
-            Routes.applicationCommands(process.env.CLIENT_ID),
+            Routes.applicationCommands(clientId),
             { body: commandsJSON },
         );
-        console.log('Pomyślnie zarejestrowano komendy.');
+        console.log('✅ Pomyślnie zarejestrowano komendy.');
     } catch (error) {
-        console.error(error);
+        console.error('❌ Błąd rejestracji:', error);
     }
 })();
 
-// --- 3. OBSŁUGA INTERAKCJI ---
+// --- 3. EVENT: GOTOWOŚĆ (STATUS) ---
+client.once('clientReady', (c) => {
+    console.log(`✅ Zalogowano jako ${c.user.tag}`);
+    
+    c.user.setPresence({
+        activities: [{ name: '/pomoc', type: ActivityType.Listening }],
+        status: 'online',
+    });
+});
+
+// --- 4. OBSŁUGA INTERAKCJI ---
 client.on('interactionCreate', async (interaction) => {
-    // Obsługa Komend Slash
+    // Komendy Slash
     if (interaction.isChatInputCommand()) {
         const command = client.commands.get(interaction.commandName);
         if (!command) return;
@@ -86,47 +95,53 @@ client.on('interactionCreate', async (interaction) => {
             await command.execute(interaction);
         } catch (error) {
             console.error(error);
-            await interaction.reply({ 
-                content: 'Wystąpił błąd podczas wykonywania tej komendy!', 
-                flags: [MessageFlags.Ephemeral] 
-            });
+            if (!interaction.replied && !interaction.deferred) {
+                await interaction.reply({ 
+                    content: 'Wystąpił błąd podczas wykonywania tej komendy!', 
+                    flags: [MessageFlags.Ephemeral] 
+                });
+            }
         }
     }
 
-    // Obsługa Przycisków (Ticket)
+    // Przyciski Ticketów
     if (interaction.isButton()) {
         if (interaction.customId === 'create_ticket') {
-            const channel = await interaction.guild.channels.create({
-                name: `ticket-${interaction.user.username}`,
-                type: ChannelType.GuildText,
-                permissionOverwrites: [
-                    {
-                        id: interaction.guild.id,
-                        deny: [PermissionsBitField.Flags.ViewChannel]
-                    },
-                    {
-                        id: interaction.user.id,
-                        allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages]
-                    }
-                ]
-            });
+            try {
+                const channel = await interaction.guild.channels.create({
+                    name: `ticket-${interaction.user.username}`,
+                    type: ChannelType.GuildText,
+                    permissionOverwrites: [
+                        {
+                            id: interaction.guild.id,
+                            deny: [PermissionsBitField.Flags.ViewChannel]
+                        },
+                        {
+                            id: interaction.user.id,
+                            allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages]
+                        }
+                    ]
+                });
 
-            const row = new ActionRowBuilder().addComponents(
-                new ButtonBuilder()
-                    .setCustomId('close_ticket')
-                    .setLabel('🔒 Zamknij Ticket')
-                    .setStyle(ButtonStyle.Danger)
-            );
+                const row = new ActionRowBuilder().addComponents(
+                    new ButtonBuilder()
+                        .setCustomId('close_ticket')
+                        .setLabel('🔒 Zamknij Ticket')
+                        .setStyle(ButtonStyle.Danger)
+                );
 
-            await channel.send({
-                content: `👋 Witaj ${interaction.user}, opisz swój problem.`,
-                components: [row]
-            });
+                await channel.send({
+                    content: `👋 Witaj ${interaction.user}, opisz swój problem.`,
+                    components: [row]
+                });
 
-            await interaction.reply({ 
-                content: `Ticket utworzony: ${channel}`, 
-                flags: [MessageFlags.Ephemeral] 
-            });
+                await interaction.reply({ 
+                    content: `Ticket utworzony: ${channel}`, 
+                    flags: [MessageFlags.Ephemeral] 
+                });
+            } catch (err) {
+                console.error('Błąd tworzenia ticketu:', err);
+            }
         }
 
         if (interaction.customId === 'close_ticket') {
@@ -134,17 +149,6 @@ client.on('interactionCreate', async (interaction) => {
             setTimeout(() => interaction.channel.delete().catch(() => {}), 3000);
         }
     }
-});
-
-client.once('clientReady', (c) => {
-    console.log(`✅ Zalogowano jako ${c.user.tag}`);
-    
-    // Ustawienie statusu: "Słucha /pomoc"
-    c.user.setPresence({
-        activities: [{ name: '/pomoc', type: ActivityType.Listening }],
-        status: 'online', // Może być: 'online', 'idle', 'dnd' (nie przeszkadzać)
-    });
-});
 });
 
 client.login(token);
