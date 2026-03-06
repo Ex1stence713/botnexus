@@ -15,6 +15,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
 import dotenv from 'dotenv';
+import { ActivityType } from 'discord.js'; // Dodaj ActivityType do importów na górze!
 
 dotenv.config();
 
@@ -135,9 +136,15 @@ client.on('interactionCreate', async (interaction) => {
     }
 });
 
-// Zmieniono 'ready' na 'clientReady' zgodnie z logami
 client.once('clientReady', (c) => {
     console.log(`✅ Zalogowano jako ${c.user.tag}`);
+    
+    // Ustawienie statusu: "Słucha /pomoc"
+    c.user.setPresence({
+        activities: [{ name: '/pomoc', type: ActivityType.Listening }],
+        status: 'online', // Może być: 'online', 'idle', 'dnd' (nie przeszkadzać)
+    });
+});
 });
 
 client.login(token);
