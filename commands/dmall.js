@@ -1,40 +1,32 @@
-const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
+import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
 
-module.exports = {
+export default {
     data: new SlashCommandBuilder()
         .setName('dmall')
-        .setDescription('Wysyła wiadomość do wszystkich członków serwera')
-        .addStringOption(option =>
-            option.setName('wiadomosc')
+        .setDescription('Wysyła wiadomość do wszystkich użytkowników serwera')
+        .addStringOption(option => 
+            option.setName('message')
                 .setDescription('Treść wiadomości')
                 .setRequired(true))
-        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator), // Tylko dla adminów
 
     async execute(interaction) {
+        const messageText = interaction.options.getString('message');
+        const members = await interaction.guild.members.fetch();
+        
+        await interaction.reply({ content: 'Rozpoczynam wysyłanie wiadomości...', ephemeral: true });
 
-        const message = interaction.options.getString('wiadomosc');
-        const guild = interaction.guild;
-
-        await interaction.reply({ content: "Rozpoczynam wysyłanie wiadomości...", ephemeral: true });
-
-        const members = await guild.members.fetch();
-
-        let sent = 0;
-
-        for (const member of members.values()) {
-
+        let successCount = 0;
+        for (const [id, member] of members) {
             if (member.user.bot) continue;
-
             try {
-                await member.send(message);
-                sent++;
+                await member.send(messageText);
+                successCount++;
             } catch (err) {
-                console.log(`Nie można wysłać do ${member.user.tag}`);
+                console.log(`Nie można wysłać DM do ${member.user.tag}`);
             }
-
-            await new Promise(resolve => setTimeout(resolve, 2000)); // 2 sekundy przerwy
         }
 
-        interaction.followUp({ content: `Wysłano wiadomość do ${sent} użytkowników.`, ephemeral: true });
-    }
+        await interaction.editReply({ content: `Wysłano wiadomość do ${successCount} osób.` });
+    },
 };
