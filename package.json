@@ -1,0 +1,17 @@
+{
+  "name": "discord-slash-bot",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.25.1",
+    "dotenv": "^16.1.4",
+    "undici": "^4.16.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14"
+  }
+}
