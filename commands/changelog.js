@@ -6,20 +6,20 @@ import {
 
 export const data = new SlashCommandBuilder()
   .setName('changelog')
-  .setDescription('Publikuje nowości na serwerze')
+  .setDescription('Publikuje estetyczne nowości na serwerze')
   .addStringOption(option =>
     option.setName('tytul')
-      .setDescription('Tytuł changelogu')
+      .setDescription('Tytuł aktualizacji (np. Wersja 2.0)')
       .setRequired(true)
   )
   .addStringOption(option =>
     option.setName('tresc')
-      .setDescription('Treść nowości')
+      .setDescription('Użyj ";" aby rozdzielić punkty nowości')
       .setRequired(true)
   )
   .addChannelOption(option =>
     option.setName('kanal')
-      .setDescription('Kanał do wysłania')
+      .setDescription('Gdzie wysłać wiadomość?')
       .setRequired(true)
   )
   .addRoleOption(option =>
@@ -27,54 +27,64 @@ export const data = new SlashCommandBuilder()
       .setDescription('Rola do oznaczenia')
   )
   .addStringOption(option =>
-    option.setName('miniatura')
-      .setDescription('Link do obrazka / miniaturki')
+    option.setName('obraz')
+      .setDescription('Link do dużego obrazka pod treścią')
   )
   .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages);
 
 export async function execute(interaction) {
-
   const title = interaction.options.getString('tytul');
-  const content = interaction.options.getString('tresc');
+  const contentRaw = interaction.options.getString('tresc');
   const channel = interaction.options.getChannel('kanal');
   const pingRole = interaction.options.getRole('ping');
-  const thumbnail = interaction.options.getString('miniatura');
+  const image = interaction.options.getString('obraz');
 
-  if (!channel || !channel.isTextBased()) {
+  if (!channel.isTextBased()) {
     return interaction.reply({
-      content: '❌ Wybierz poprawny kanał tekstowy.',
+      content: '❌ Wybrany kanał musi być tekstowy.',
       ephemeral: true
     });
   }
 
+  // Automatyczne formatowanie punktów (jeśli użytkownik użyje średnika ;)
+  const formattedContent = contentRaw
+    .split(';')
+    .map(line => `• ${line.trim()}`)
+    .join('\n');
+
   const embed = new EmbedBuilder()
-    .setTitle(`📢 ${title}`)
-    .setDescription(`> ${content}`)
-    .setColor('#2B2D31')
+    .setAuthor({
+      name: `Aktualizacja: ${interaction.guild.name}`,
+      iconURL: interaction.guild.iconURL({ dynamic: true })
+    })
+    .setTitle(`✨ ${title}`)
+    .setDescription(`\n${formattedContent}\n\n`)
+    .setColor('#5865F2') // Blurple - klasyczny kolor Discorda
     .addFields(
       {
-        name: '👤 Autor',
+        name: '🛠️ Deweloper',
         value: `${interaction.user}`,
         inline: true
       },
       {
-        name: '📅 Data publikacji',
-        value: `<t:${Math.floor(Date.now() / 1000)}:F>`,
+        name: '📅 Data',
+        value: `<t:${Math.floor(Date.now() / 1000)}:d>`, // Krótka data
         inline: true
       }
     )
     .setFooter({
-      text: `${interaction.guild.name} • Changelog`,
-      iconURL: interaction.guild.iconURL({ dynamic: true })
+      text: `Wersja produkcyjna • ${interaction.guild.name}`,
     })
     .setTimestamp();
 
-  if (thumbnail) {
-    embed.setImage(thumbnail);
+  if (image) {
+    // Sprawdzanie czy link jest poprawnym URL (opcjonalnie)
+    if (image.startsWith('http')) {
+        embed.setImage(image);
+    }
   }
 
   try {
-
     const mention = pingRole ? `${pingRole}` : '';
 
     await channel.send({
@@ -83,15 +93,14 @@ export async function execute(interaction) {
     });
 
     await interaction.reply({
-      content: `✅ Changelog wysłany do <#${channel.id}>`,
+      content: `✅ Pomyślnie opublikowano nowości na kanale ${channel}`,
       ephemeral: true
     });
 
   } catch (err) {
     console.error(err);
-
     return interaction.reply({
-      content: '❌ Wystąpił błąd przy wysyłaniu.',
+      content: '❌ Nie udało się wysłać changelogu. Sprawdź moje uprawnienia na tamtym kanale.',
       ephemeral: true
     });
   }
