@@ -23,8 +23,8 @@ dotenv.config();
 // ==========================================
 //              KONFIGURACJA ID
 // ==========================================
-const LOG_CHANNEL_ID = '1479629372158902373';        // Kanał dla administracji
-const STATUS_CHANNEL_ID = '1479630853054267412';  // Kanał publiczny dla graczy
+const LOG_CHANNEL_ID = '1479629372158902373'; // Kanał dla administracji
+const STATUS_CHANNEL_ID = '1479630853054267412'; // Kanał publiczny dla graczy
 // ==========================================
 
 const token = process.env.BOT_TOKEN;
@@ -61,7 +61,7 @@ for (const file of commandFiles) {
             commandsJSON.push(command.data.toJSON());
             loadedCommandsNames.push(`\`/${command.data.name}\``);
         }
-    } catch (e) { console.error(`Błąd komendy ${file}: ${e.message}`); }
+    } catch (e) { console.error(`❌ Błąd komendy ${file}: ${e.message}`); }
 }
 
 // --- 2. REJESTRACJA KOMEND SLASH ---
@@ -73,41 +73,51 @@ const rest = new REST({ version: '10' }).setToken(token);
     } catch (e) { console.error(e); }
 })();
 
-// --- 3. FUNKCJA PUBLICZNEGO STATUSU (Live Stats) ---
+// --- 3. FUNKCJA PUBLICZNEGO STATUSU (AUTOMATYCZNE ODŚWIEŻANIE) ---
 async function updatePublicStatus() {
-    const channel = client.channels.cache.get(STATUS_CHANNEL_ID);
-    if (!channel) return;
-
-    const uptime = Math.floor(client.uptime / 60000);
-    const hours = Math.floor(uptime / 60);
-    const mins = uptime % 60;
-
-    const statusEmbed = new EmbedBuilder()
-        .setTitle('📊 Monitor Systemowy Nexus')
-        .setColor(client.ws.ping < 100 ? '#2ecc71' : '#f1c40f')
-        .addFields(
-            { name: '🟢 Status bota', value: 'Działa poprawnie', inline: true },
-            { name: '⚡ Opóźnienie', value: `\`${client.ws.ping}ms\``, inline: true },
-            { name: '⏳ Uptime', value: `\`${hours}h ${mins}m\``, inline: true },
-            { name: '👥 Serwer', value: `\`${client.guilds.cache.reduce((a, g) => a + g.memberCount, 0)} osób\``, inline: true },
-            { name: '🕒 Ostatnie odświeżenie', value: `<t:${Math.floor(Date.now() / 1000)}:R>`, inline: false }
-        )
-        .setFooter({ text: 'Status odświeża się automatycznie co 60s' });
-
     try {
+        const channel = await client.channels.fetch(STATUS_CHANNEL_ID).catch(() => null);
+        if (!channel) return console.log('⚠️ Nie znaleziono kanału statusu.');
+
+        const uptime = Math.floor(client.uptime / 60000);
+        const hours = Math.floor(uptime / 60);
+        const mins = uptime % 60;
+
+        const statusEmbed = new EmbedBuilder()
+            .setTitle('📊 Monitor Systemowy Nexus')
+            .setColor(client.ws.ping < 100 ? '#2ecc71' : '#f1c40f')
+            .addFields(
+                { name: '🟢 Status bota', value: 'Działa poprawnie', inline: true },
+                { name: '⚡ Opóźnienie', value: `\`${client.ws.ping}ms\``, inline: true },
+                { name: '⏳ Uptime', value: `\`${hours}h ${mins}m\``, inline: true },
+                { name: '👥 Serwer', value: `\`${client.guilds.cache.reduce((a, g) => a + g.memberCount, 0)} osób\``, inline: true },
+                { name: '🕒 Ostatnie odświeżenie', value: `<t:${Math.floor(Date.now() / 1000)}:R>`, inline: false }
+            )
+            .setFooter({ text: 'Status odświeża się automatycznie co 60 sekund' })
+            .setTimestamp();
+
         const messages = await channel.messages.fetch({ limit: 10 });
         const lastBotMsg = messages.find(m => m.author.id === client.user.id);
-        if (lastBotMsg) await lastBotMsg.edit({ embeds: [statusEmbed] });
-        else await channel.send({ embeds: [statusEmbed] });
-    } catch (e) { console.error('Błąd statusu:', e); }
+
+        if (lastBotMsg) {
+            await lastBotMsg.edit({ embeds: [statusEmbed] });
+            console.log('🔄 Status zaktualizowany.');
+        } else {
+            await channel.send({ embeds: [statusEmbed] });
+            console.log('📨 Wysłano nową wiadomość statusu.');
+        }
+    } catch (e) {
+        console.error('❌ Błąd podczas odświeżania statusu:', e);
+    }
 }
 
-// --- 4. EVENTY LOGÓW ---
+// --- 4. FUNKCJA LOGUJĄCA DLA ADMINA ---
 async function sendLog(embed) {
     const channel = client.channels.cache.get(LOG_CHANNEL_ID);
-    if (channel) channel.send({ embeds: [embed] });
+    if (channel) channel.send({ embeds: [embed] }).catch(() => {});
 }
 
+// --- 5. LOGI ZDARZEŃ (USUNIĘCIA/EDYCJE) ---
 client.on('messageDelete', (m) => {
     if (m.author?.bot) return;
     sendLog(new EmbedBuilder().setTitle('🗑️ Wiadomość usunięta').setColor('Red')
@@ -119,25 +129,27 @@ client.on('guildMemberAdd', (member) => {
     sendLog(new EmbedBuilder().setTitle('📥 Nowy gracz').setColor('Green').setDescription(`${member.user.tag} wszedł na serwer.`).setTimestamp());
 });
 
-// --- 5. START BOTA ---
+// --- 6. START BOTA I INTERWAŁY ---
 client.once('clientReady', (c) => {
     console.log(`🚀 Zalogowano jako ${c.user.tag}`);
     c.user.setPresence({ activities: [{ name: '/pomoc', type: ActivityType.Listening }], status: 'online' });
 
-    // Raport startowy dla Admina
+    // Raport startowy
     sendLog(new EmbedBuilder().setTitle('🤖 System Restart').setColor('Blue')
     .addFields({ name: '📂 Załadowano komendy:', value: loadedCommandsNames.join(', ') || 'Brak' }).setTimestamp());
 
-    // Publiczny status
-    updatePublicStatus();
-    setInterval(updatePublicStatus, 60000);
+    // --- KLUCZOWE: ODŚWIEŻANIE CO 1 MINUTĘ ---
+    updatePublicStatus(); // Odśwież od razu po starcie
+    setInterval(() => {
+        updatePublicStatus();
+    }, 60000); // 60000 ms = 1 minuta
 });
 
-// --- 6. INTERAKCJE ---
+// --- 7. OBSŁUGA INTERAKCJI ---
 client.on('interactionCreate', async (interaction) => {
     if (interaction.isChatInputCommand()) {
         const command = client.commands.get(interaction.commandName);
-        if (command) await command.execute(interaction).catch(e => console.error(e));
+        if (command) await command.execute(interaction).catch(() => {});
     }
 
     if (interaction.isButton()) {
@@ -151,7 +163,7 @@ client.on('interactionCreate', async (interaction) => {
                 ]
             });
             const row = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('close_ticket').setLabel('🔒 Zamknij').setStyle(ButtonStyle.Danger));
-            await ch.send({ content: `Witaj ${interaction.user}`, components: [row] });
+            await ch.send({ content: `Witaj ${interaction.user}, opisz swój problem.`, components: [row] });
             await interaction.reply({ content: `Otwarto: ${ch}`, flags: [MessageFlags.Ephemeral] });
             sendLog(new EmbedBuilder().setTitle('🎫 Ticket').setDescription(`${interaction.user.tag} otworzył zgłoszenie.`).setColor('Blue').setTimestamp());
         }
