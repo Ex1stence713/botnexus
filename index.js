@@ -174,53 +174,6 @@ client.on('interactionCreate', async (interaction) => {
             setTimeout(() => interaction.channel.delete().catch(() => {}), 3000);
         }
     }
-    // Wewnątrz client.on('interactionCreate', async (interaction) => { ... })
-
-if (interaction.isButton()) {
-    // Sprawdzamy czy ID przycisku zaczyna się od 'help_'
-    if (interaction.customId.startsWith('help_')) {
-        
-        const categoryEmbed = new EmbedBuilder()
-            .setColor('#2B2D31')
-            .setThumbnail(interaction.client.user.displayAvatarURL())
-            .setTimestamp()
-            .setFooter({ 
-                text: `${interaction.client.user.username} • System pomocy`, 
-                iconURL: interaction.client.user.displayAvatarURL() 
-            });
-
-        // Logika wyświetlania konkretnych kategorii
-        switch (interaction.customId) {
-            case 'help_fun':
-                categoryEmbed.setTitle('🎉 KOMENDY FUN')
-                    .setDescription('• `/roll` — Rzut kostką\n• `/coinflip` — Rzut monetą\n• `/avatar` — Pokazuje avatar');
-                break;
-
-            case 'help_other':
-                categoryEmbed.setTitle('📁 KOMENDY INNE')
-                    .setDescription('• `/help` — Menu pomocy\n• `/status` — Status bota');
-                break;
-
-            case 'help_config':
-                categoryEmbed.setTitle('⚙️ KONFIGURACJA')
-                    .setDescription(
-                        '• `!antylink` — Konfiguracja Anti-Link\n' +
-                        '• `!autorole` — Zarządzanie rolami\n' +
-                        '• `!ticket` — System ticketów\n' +
-                        '• `!verify` — Panel weryfikacji'
-                    );
-                break;
-
-            case 'help_mod':
-                categoryEmbed.setTitle('🛡️ MODERACJA')
-                    .setDescription('• `/clear` — Czyści wiadomości\n• `/kick` — Wyrzuca użytkownika\n• `/ban` — Banuje użytkownika');
-                break;
-        }
-
-        // Edytujemy wiadomość zamiast wysyłać nową
-        await interaction.update({ embeds: [categoryEmbed] });
-    }
-}
 });
 
 client.login(token);

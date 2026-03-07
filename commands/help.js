@@ -1,51 +1,36 @@
-﻿import { 
-  SlashCommandBuilder, 
-  EmbedBuilder, 
-  ActionRowBuilder, 
-  ButtonBuilder, 
-  ButtonStyle 
-} from 'discord.js';
+﻿import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
 
 export const data = new SlashCommandBuilder()
   .setName('help')
-  .setDescription('Wyświetla interaktywne menu pomocy');
+  .setDescription('Wyświetla listę wszystkich komend.');
 
 export async function execute(interaction) {
-  // Główne menu (startowe)
-  const embed = new EmbedBuilder()
-    .setTitle('📚 Menu Pomocy Bota')
-    .setDescription('Wybierz interesującą Cię kategorię za pomocą przycisków poniżej, aby zobaczyć dostępne komendy.')
-    .setColor('#2B2D31')
-    .setThumbnail(interaction.client.user.displayAvatarURL())
-    .setFooter({ 
-      text: `${interaction.client.user.username} • System pomocy`, 
-      iconURL: interaction.client.user.displayAvatarURL() 
-    })
+  const commands = Array.from(interaction.client.commands.values());
+  const categories = {};
+
+  for (const cmd of commands) {
+    const cat = interaction.client.categoryMap?.get(cmd.data.name) || 'general';
+    if (!categories[cat]) categories[cat] = [];
+    const desc = cmd.data?.description || '';
+    // format as `/name — description`
+    categories[cat].push(`/${cmd.data.name} — ${desc}`);
+  }
+
+  const helpEmbed = new EmbedBuilder()
+    .setTitle('📚 Wszystkie Komendy Bota')
+    .setDescription('Poniżej znajdziesz listę wszystkich dostępnych komend.')
+    .setColor(0x5865F2);
+
+  for (const [cat, list] of Object.entries(categories)) {
+    let title = '🌐 Komendy Ogólne';
+    if (cat.toLowerCase() === 'admin') title = '🛡️ Komendy Administracyjne';
+    else if (cat.toLowerCase() === 'info') title = 'ℹ️ Komendy Informacyjne';
+
+    helpEmbed.addFields({ name: title, value: list.join('\n') || 'Brak komend', inline: false });
+  }
+
+  helpEmbed.setFooter({ text: 'Wersja 1.0 • Aby uzyskać więcej informacji o danej komendzie, użyj /help' })
     .setTimestamp();
 
-  // Tworzenie przycisków
-  const row = new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId('help_fun')
-      .setLabel('FUN')
-      .setEmoji('🎉')
-      .setStyle(ButtonStyle.Primary),
-    new ButtonBuilder()
-      .setCustomId('help_other')
-      .setLabel('INNE')
-      .setEmoji('📁')
-      .setStyle(ButtonStyle.Primary),
-    new ButtonBuilder()
-      .setCustomId('help_config')
-      .setLabel('KONFIGURACJA')
-      .setEmoji('⚙️')
-      .setStyle(ButtonStyle.Primary),
-    new ButtonBuilder()
-      .setCustomId('help_mod')
-      .setLabel('MODERACJA')
-      .setEmoji('🛡️')
-      .setStyle(ButtonStyle.Primary)
-  );
-
-  await interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
+  await interaction.reply({ embeds: [helpEmbed], ephemeral: true });
 }
