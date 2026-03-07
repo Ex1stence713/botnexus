@@ -23,7 +23,7 @@ dotenv.config();
 // --- KONFIGURACJA ---
 const token = process.env.BOT_TOKEN;
 const clientId = process.env.CLIENT_ID;
-const LOG_CHANNEL_ID = 'ID_TWOJEGO_KANALU_LOGOW'; // <--- TUTAJ WPISZ ID KANAŁU
+const LOG_CHANNEL_ID = '1479629372158902373'; // <--- TUTAJ WPISZ ID KANAŁU
 
 const client = new Client({
     intents: [
