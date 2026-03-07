@@ -23,7 +23,7 @@ dotenv.config();
 // --- KONFIGURACJA ---
 const token = process.env.BOT_TOKEN;
 const clientId = process.env.CLIENT_ID;
-const LOG_CHANNEL_ID = '1479629372158902373'; // Zmień na prawdziwe ID
+const LOG_CHANNEL_ID = 'ID_TWOJEGO_KANALU_LOGOW'; // <--- TUTAJ WPISZ ID KANAŁU
 
 const client = new Client({
     intents: [
@@ -32,7 +32,7 @@ const client = new Client({
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
         GatewayIntentBits.DirectMessages,
-        GatewayIntentBits.GuildModeration // Dla logów banów/kicków
+        GatewayIntentBits.GuildModeration
     ]
 });
 
@@ -40,50 +40,57 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 client.commands = new Collection();
 
-// --- 1. LOADER KOMEND ---
+// --- 1. LOADER KOMEND (Automatyczne wykrywanie plików w /commands) ---
 const commandsPath = path.join(__dirname, 'commands');
 const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js') || file.endsWith('.cjs'));
 const commandsJSON = [];
+const loadedCommandsNames = [];
 
 for (const file of commandFiles) {
     const filePath = pathToFileURL(path.join(commandsPath, file)).href;
     try {
         const commandModule = await import(filePath);
         const command = commandModule.default || commandModule;
+        
         if (command.data && command.execute) {
             client.commands.set(command.data.name, command);
             commandsJSON.push(command.data.toJSON());
+            loadedCommandsNames.push(`\`/${command.data.name}\``);
         }
-    } catch (e) { console.error(`Błąd komendy ${file}: ${e.message}`); }
+    } catch (error) {
+        console.error(`❌ Błąd ładowania ${file}: ${error.message}`);
+    }
 }
 
-// --- 2. REJESTRACJA SLASH COMMANDS ---
+// --- 2. REJESTRACJA KOMEND SLASH ---
 const rest = new REST({ version: '10' }).setToken(token);
 (async () => {
     try {
         await rest.put(Routes.applicationCommands(clientId), { body: commandsJSON });
-        console.log('✅ Komendy zarejestrowane.');
-    } catch (e) { console.error(e); }
+        console.log('✅ Komendy Slash zarejestrowane pomyślnie.');
+    } catch (error) {
+        console.error('❌ Błąd REST:', error);
+    }
 })();
 
-// --- 3. FUNKCJA DO WYSYŁANIA LOGÓW ---
+// --- 3. POMOCNICZA FUNKCJA LOGUJĄCA ---
 async function sendLog(embed) {
     const channel = client.channels.cache.get(LOG_CHANNEL_ID);
-    if (channel) channel.send({ embeds: [embed] });
+    if (channel) channel.send({ embeds: [embed] }).catch(console.error);
 }
 
-// --- 4. EVENTY LOGÓW (Wszystko z serwera) ---
+// --- 4. EVENTY LOGÓW (Śledzenie zmian na serwerze) ---
 
 // Log: Usunięcie wiadomości
 client.on('messageDelete', (message) => {
     if (message.author?.bot) return;
     const embed = new EmbedBuilder()
         .setTitle('🗑️ Usunięto wiadomość')
-        .setColor('Red')
+        .setColor('#ff4747')
         .addFields(
             { name: 'Autor', value: `${message.author?.tag || 'Nieznany'}`, inline: true },
             { name: 'Kanał', value: `${message.channel}`, inline: true },
-            { name: 'Treść', value: message.content || '*Brak treści (obrazek lub embed)*' }
+            { name: 'Treść', value: message.content || '*Brak treści (plik/embed)*' }
         )
         .setTimestamp();
     sendLog(embed);
@@ -94,9 +101,9 @@ client.on('messageUpdate', (oldMsg, newMsg) => {
     if (oldMsg.author?.bot || oldMsg.content === newMsg.content) return;
     const embed = new EmbedBuilder()
         .setTitle('✏️ Edytowano wiadomość')
-        .setColor('Yellow')
+        .setColor('#ffcc00')
         .addFields(
-            { name: 'Autor', value: `${oldMsg.author.tag}`, inline: true },
+            { name: 'Autor', value: `${oldMsg.author?.tag}`, inline: true },
             { name: 'Przed', value: oldMsg.content || '*Brak*' },
             { name: 'Po', value: newMsg.content || '*Brak*' }
         )
@@ -106,32 +113,58 @@ client.on('messageUpdate', (oldMsg, newMsg) => {
 
 // Log: Nowy użytkownik
 client.on('guildMemberAdd', (member) => {
-    const embed = new EmbedBuilder()
+    sendLog(new EmbedBuilder()
         .setTitle('📥 Nowy członek')
-        .setColor('Green')
-        .setDescription(`${member.user.tag} dołączył do serwera.`)
+        .setColor('#2ecc71')
+        .setDescription(`Użytkownik **${member.user.tag}** dołączył do serwera.`)
         .setThumbnail(member.user.displayAvatarURL())
-        .setTimestamp();
-    sendLog(embed);
+        .setTimestamp());
 });
 
-// Log: Wyjście użytkownika
-client.on('guildMemberRemove', (member) => {
-    const embed = new EmbedBuilder()
-        .setTitle('📤 Odejście/Kick')
-        .setColor('Orange')
-        .setDescription(`${member.user.tag} opuścił serwer.`)
+// --- 5. OBSŁUGA STARTU (Status i Raport Zmian) ---
+client.once('clientReady', (c) => {
+    console.log(`🚀 Bot Nexus online jako ${c.user.tag}`);
+    
+    c.user.setPresence({
+        activities: [{ name: '/pomoc | Logi', type: ActivityType.Watching }],
+        status: 'online',
+    });
+
+    // Raport po restarcie (widzisz co dodałeś w kodzie)
+    const startupEmbed = new EmbedBuilder()
+        .setTitle('⚙️ System Uruchomiony')
+        .setColor('#5865F2')
+        .setDescription('Wykryto restart bota. Załadowane zasoby:')
+        .addFields(
+            { name: '📂 Komendy:', value: loadedCommandsNames.join(', ') || 'Brak komend' },
+            { name: '📡 Status:', value: '🟢 Online i gotowy', inline: true },
+            { name: '🖥️ Serwery:', value: `${client.guilds.cache.size}`, inline: true }
+        )
         .setTimestamp();
-    sendLog(embed);
+    sendLog(startupEmbed);
 });
 
-// --- 5. OBSŁUGA TICKETÓW I KOMEND ---
+// --- 6. OBSŁUGA INTERAKCJI (Komendy i Tickety) ---
 client.on('interactionCreate', async (interaction) => {
+    // Komendy Slash
     if (interaction.isChatInputCommand()) {
         const command = client.commands.get(interaction.commandName);
-        if (command) await command.execute(interaction);
+        if (!command) return;
+
+        try {
+            await command.execute(interaction);
+            // Opcjonalny log użycia komendy
+            console.log(`[CMD] ${interaction.user.tag} użył /${interaction.commandName}`);
+        } catch (error) {
+            console.error(error);
+            await interaction.reply({ 
+                content: 'Wystąpił błąd podczas wykonywania tej komendy!', 
+                flags: [MessageFlags.Ephemeral] 
+            });
+        }
     }
 
+    // System Ticketów (Przyciski)
     if (interaction.isButton()) {
         if (interaction.customId === 'create_ticket') {
             const channel = await interaction.guild.channels.create({
@@ -143,25 +176,22 @@ client.on('interactionCreate', async (interaction) => {
                 ]
             });
 
-            // Log ticketu
-            sendLog(new EmbedBuilder().setTitle('🎫 Nowy Ticket').setColor('Blue').setDescription(`Otwarty przez: ${interaction.user.tag}`).setTimestamp());
+            const row = new ActionRowBuilder().addComponents(
+                new ButtonBuilder().setCustomId('close_ticket').setLabel('🔒 Zamknij').setStyle(ButtonStyle.Danger)
+            );
 
-            const row = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('close_ticket').setLabel('🔒 Zamknij').setStyle(ButtonStyle.Danger));
-            await channel.send({ content: `Witaj ${interaction.user}`, components: [row] });
-            await interaction.reply({ content: 'Ticket stworzony!', flags: [MessageFlags.Ephemeral] });
+            await channel.send({ content: `Witaj ${interaction.user}, opisz swój problem.`, components: [row] });
+            await interaction.reply({ content: `Ticket utworzony: ${channel}`, flags: [MessageFlags.Ephemeral] });
+            
+            sendLog(new EmbedBuilder().setTitle('🎫 Nowy Ticket').setColor('#3498db').setDescription(`Użytkownik **${interaction.user.tag}** otworzył zgłoszenie.`).setTimestamp());
         }
 
         if (interaction.customId === 'close_ticket') {
-            sendLog(new EmbedBuilder().setTitle('🔒 Zamknięto Ticket').setColor('Grey').setDescription(`Zamknięty przez: ${interaction.user.tag}`).setTimestamp());
-            await interaction.reply('Zamykanie...');
+            sendLog(new EmbedBuilder().setTitle('🔒 Zamknięto Ticket').setColor('#95a5a6').setDescription(`Zgłoszenie na kanale **${interaction.channel.name}** zostało zamknięte przez **${interaction.user.tag}**.`).setTimestamp());
+            await interaction.reply('Kanał zostanie usunięty za 3 sekundy...');
             setTimeout(() => interaction.channel.delete().catch(() => {}), 3000);
         }
     }
-});
-
-client.once('clientReady', (c) => {
-    console.log(`✅ Zalogowano: ${c.user.tag}`);
-    c.user.setPresence({ activities: [{ name: 'Logi serwera', type: ActivityType.Watching }], status: 'online' });
 });
 
 client.login(token);
