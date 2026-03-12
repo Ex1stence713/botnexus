@@ -18,8 +18,8 @@ dotenv.config();
 // ===========================
 // KONFIGURACJA
 // ===========================
-const LOG_CHANNEL_ID = 'TU_WLEJ_ID_LOGOW';
-const STATUS_CHANNEL_ID = 'TU_WLEJ_ID_STATUSU';
+const LOG_CHANNEL_ID = '1479629372158902373';
+const STATUS_CHANNEL_ID = '1479630853054267412';
 
 const token = process.env.BOT_TOKEN;
 const clientId = process.env.CLIENT_ID;
