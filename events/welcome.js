@@ -1,19 +1,27 @@
+import { EmbedBuilder } from 'discord.js';
+
 export default {
   name: "guildMemberAdd",
 
   async execute(member) {
-    const channelId = "1463630782412357785";
+    const channelId = "1463630781971829003";
     const channel = member.guild.channels.cache.get(channelId);
     if (!channel) return;
 
-    const message = `👋 **Witamy na serwerze!**
+    const memberCount = member.guild.memberCount;
 
-Cześć ${member.user}!
-Miło Cię tutaj widzieć. Rozgość się, zapoznaj z regulaminem i zajrzyj na dostępne kanały 😊
+    const welcomeEmbed = new EmbedBuilder()
+      .setColor(0x2ecc71)
+      .setTitle("👋 Witamy na serwerze!")
+      .setDescription(`Cześć **${member.user.username}**! Miło Cię widzieć na naszym serwerze.`)
+      .addFields(
+        { name: "👥 Członek", value: `#${memberCount}`, inline: true },
+        { name: "📅 Dołączył", value: `<t:${Math.floor(Date.now() / 1000)}:R>`, inline: true }
+      )
+      .setThumbnail(member.user.displayAvatarURL({ dynamic: true, size: 256 }))
+      .setFooter({ text: "Zapoznaj się z regulaminem i rozgość się!" })
+      .setTimestamp();
 
-Jeśli czegoś potrzebujesz, śmiało pytaj administrację lub innych członków!
-`;
-
-    await channel.send({ content: message });
+    await channel.send({ embeds: [welcomeEmbed] });
   },
 };

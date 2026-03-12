@@ -46,12 +46,13 @@ const client = new Client({
 });
 
 client.commands = new Collection();
+client.categoryMap = new Map();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // ===========================
-// LOADER KOMEND
+// REKURENCYJNE ŁADOWANIE KOMEND
 // ===========================
 async function loadCommands() {
 
@@ -62,36 +63,42 @@ async function loadCommands() {
         return { commandsJSON: [], loadedNames: [] };
     }
 
-    const commandFiles = fs.readdirSync(commandsPath)
-        .filter(file => file.endsWith('.js') || file.endsWith('.cjs'));
-
     const commandsJSON = [];
     const loadedNames = [];
 
-    for (const file of commandFiles) {
+    // Funkcja do rekurencyjnego przeszukiwania katalogów
+    async function scanDirectory(dirPath, category = 'general') {
+        const items = fs.readdirSync(dirPath, { withFileTypes: true });
+        
+        for (const item of items) {
+            const itemPath = path.join(dirPath, item.name);
+            
+            if (item.isDirectory()) {
+                // Rekurencyjnie przeszukaj podkatalog (np. commands/admin/)
+                await scanDirectory(itemPath, item.name);
+            } else if (item.name.endsWith('.js') || item.name.endsWith('.cjs')) {
+                const filePath = pathToFileURL(itemPath).href;
+                
+                try {
+                    const module = await import(filePath);
+                    const command = module.default || module;
 
-        const filePath = pathToFileURL(path.join(commandsPath, file)).href;
-
-        try {
-
-            const module = await import(filePath);
-            const command = module.default || module;
-
-            if (command.data && command.execute) {
-
-                client.commands.set(command.data.name, command);
-                commandsJSON.push(command.data.toJSON());
-                loadedNames.push(`/${command.data.name}`);
-
+                    if (command.data && command.execute) {
+                        client.commands.set(command.data.name, command);
+                        client.categoryMap.set(command.data.name, category);
+                        commandsJSON.push(command.data.toJSON());
+                        loadedNames.push(`/${command.data.name}`);
+                    }
+                } catch (err) {
+                    console.error(`❌ Błąd ładowania ${item.name}`, err);
+                }
             }
-
-        } catch (err) {
-
-            console.error(`❌ Błąd ładowania ${file}`, err);
-
         }
-
     }
+
+    await scanDirectory(commandsPath);
+
+    console.log(`✅ Łącznie załadowano ${loadedNames.length} komend`);
 
     return { commandsJSON, loadedNames };
 }
@@ -258,6 +265,30 @@ client.on('interactionCreate', async interaction => {
 
     const { commandsJSON } = await loadCommands();
     await registerCommands(commandsJSON);
+
+    // ===========================
+    // ŁADOWANIE EVENTÓW
+    // ===========================
+    const eventsPath = path.join(__dirname, 'events');
+    
+    if (fs.existsSync(eventsPath)) {
+        const eventFiles = fs.readdirSync(eventsPath).filter(f => f.endsWith('.js'));
+        
+        for (const file of eventFiles) {
+            const filePath = pathToFileURL(path.join(eventsPath, file)).href;
+            const event = await import(filePath);
+            const evt = event.default || event;
+            
+            if (evt.name && evt.execute) {
+                if (evt.once) {
+                    client.once(evt.name, evt.execute);
+                } else {
+                    client.on(evt.name, evt.execute);
+                }
+                console.log(`✅ Załadowano event: ${evt.name}`);
+            }
+        }
+    }
 
     client.login(token);
 
