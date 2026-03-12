@@ -215,18 +215,49 @@ async function updatePublicStatus() {
         const channel = await client.channels.fetch(STATUS_CHANNEL_ID).catch(() => null);
         if (!channel) return;
 
-        const uptime = Math.floor(client.uptime / 60000);
-        const hours = Math.floor(uptime / 60);
-        const mins = uptime % 60;
+        // Obliczenia
+        const uptimeMs = client.uptime;
+        const days = Math.floor(uptimeMs / 86400000);
+        const hours = Math.floor((uptimeMs % 86400000) / 3600000);
+        const mins = Math.floor((uptimeMs % 3600000) / 60000);
+        const ping = client.ws.ping;
+        
+        // Kolor zależny od pingu
+        let statusColor = '#2ecc71'; // zielony
+        let statusEmoji = '🟢';
+        let statusText = 'Online';
+        
+        if (ping >= 200) {
+            statusColor = '#e74c3c'; // czerwony
+            statusEmoji = '🔴';
+            statusText = 'Lag';
+        } else if (ping >= 100) {
+            statusColor = '#f1c40f'; // żółty
+            statusEmoji = '🟡';
+            statusText = 'Online';
+        }
+        
+        // Format uptime
+        const uptimeStr = days > 0 
+            ? `${days}d ${hours}h ${mins}m` 
+            : `${hours}h ${mins}m`;
 
         const embed = new EmbedBuilder()
-            .setTitle('📊 Status Bota')
-            .setColor(client.ws.ping < 100 ? '#2ecc71' : '#f1c40f')
+            .setTitle(`${statusEmoji} Status Bota`)
+            .setColor(statusColor)
+            .setThumbnail(client.user.displayAvatarURL({ size: 128 }))
             .addFields(
-                { name: 'Status', value: 'Online', inline: true },
-                { name: 'Ping', value: `${client.ws.ping}ms`, inline: true },
-                { name: 'Uptime', value: `${hours}h ${mins}m`, inline: true }
+                { name: '💠 Status', value: statusText, inline: true },
+                { name: '📡 Ping', value: `\`${ping}ms\``, inline: true },
+                { name: '⏱️ Uptime', value: `\`${uptimeStr}\``, inline: true },
+                { name: '👥 Serwery', value: `\`${client.guilds.cache.size}\``, inline: true },
+                { name: '👤 Użytkownicy', value: `\`${client.users.cache.size}\``, inline: true },
+                { name: '📝 Kanały', value: `\`${client.channels.cache.size}\``, inline: true }
             )
+            .setFooter({ 
+                text: `Nexus Bot • Aktualizacja: ${new Date().toLocaleTimeString('pl-PL')}`,
+                iconURL: client.user.displayAvatarURL({ size: 32 })
+            })
             .setTimestamp();
 
         const messages = await channel.messages.fetch({ limit: 10 });
