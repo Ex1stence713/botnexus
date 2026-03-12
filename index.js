@@ -154,35 +154,6 @@ client.on('interactionCreate', async (interaction) => {
         const command = client.commands.get(interaction.commandName);
         if (command) await command.execute(interaction).catch(() => {});
     }
-
-    if (interaction.isButton()) {
-        // System pomocy z przyciskami
-        if (interaction.customId.startsWith('help_')) {
-             // Tutaj logika edycji helpa...
-        }
-
-        // System Ticketów
-        if (interaction.customId === 'create_ticket') {
-            const ch = await interaction.guild.channels.create({
-                name: `ticket-${interaction.user.username}`,
-                type: ChannelType.GuildText,
-                permissionOverwrites: [
-                    { id: interaction.guild.id, deny: [PermissionsBitField.Flags.ViewChannel] },
-                    { id: interaction.user.id, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages] }
-                ]
-            });
-            const row = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('close_ticket').setLabel('🔒 Zamknij').setStyle(ButtonStyle.Danger));
-            await ch.send({ content: `Witaj ${interaction.user}`, components: [row] });
-            await interaction.reply({ content: `Otwarto: ${ch}`, flags: [MessageFlags.Ephemeral] });
-            sendLog(new EmbedBuilder().setTitle('🎫 Nowy Ticket').setDescription(`Otwarty przez: ${interaction.user.tag}`).setColor('Blue').setTimestamp());
-        }
-
-        if (interaction.customId === 'close_ticket') {
-            sendLog(new EmbedBuilder().setTitle('🔒 Zamknięto Ticket').setDescription(`Zamknięty przez: ${interaction.user.tag}`).setColor('Grey').setTimestamp());
-            await interaction.reply('Zamykanie za 3s...');
-            setTimeout(() => interaction.channel.delete().catch(() => {}), 3000);
-        }
-    }
 });
 
 client.login(token);
