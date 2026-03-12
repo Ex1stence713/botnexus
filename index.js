@@ -16,6 +16,65 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 // ===========================
+// PARTNERSTWO - DATA STORAGE
+// ===========================
+const partnershipsFile = path.join(__dirname, 'data', 'partnerships.json');
+
+function loadPartnerships() {
+    try {
+        if (fs.existsSync(partnershipsFile)) {
+            const data = fs.readFileSync(partnershipsFile, 'utf8');
+            return JSON.parse(data).partnerships || [];
+        }
+    } catch (err) {
+        console.error('❌ Błąd ładowania partnershipów', err);
+    }
+    return [];
+}
+
+function savePartnerships(partnerships) {
+    try {
+        fs.writeFileSync(partnershipsFile, JSON.stringify({ partnerships }, null, 2));
+    } catch (err) {
+        console.error('❌ Błąd zapisywania partnershipów', err);
+    }
+}
+
+function getUserPartnershipCount(userId) {
+    const partnerships = loadPartnerships();
+    const userPartnerships = partnerships.filter(p => p.userId === userId);
+    return userPartnerships.length;
+}
+
+function getUserRanking(userId) {
+    const partnerships = loadPartnerships();
+    const userCounts = {};
+    
+    partnerships.forEach(p => {
+        userCounts[p.userId] = (userCounts[p.userId] || 0) + 1;
+    });
+    
+    const sorted = Object.entries(userCounts)
+        .sort((a, b) => b[1] - a[1]);
+    
+    const rank = sorted.findIndex(([id]) => id === userId) + 1;
+    return rank || sorted.length;
+}
+
+function addPartnership(userId, username) {
+    const partnerships = loadPartnerships();
+    partnerships.push({
+        userId,
+        username,
+        timestamp: Date.now()
+    });
+    savePartnerships(partnerships);
+}
+
+// Regex do wykrywania invite linków Discord
+const inviteRegex = /(?:discord\.gg\/|discord(?:app)?\.com\/|discord\.gg\/)[a-zA-Z0-9]+/gi;
+
+// ===========================
 // KONFIGURACJA
 // ===========================
 const LOG_CHANNEL_ID = '1479629372158902373';
@@ -65,6 +124,7 @@ async function loadCommands() {
 
     const commandsJSON = [];
     const loadedNames = [];
+    const seenCommands = new Set(); // Zapobiega duplikatom
 
     // Funkcja do rekurencyjnego przeszukiwania katalogów
     async function scanDirectory(dirPath, category = 'general') {
@@ -84,6 +144,13 @@ async function loadCommands() {
                     const command = module.default || module;
 
                     if (command.data && command.execute) {
+                        // Pomijaj duplikaty komend
+                        if (seenCommands.has(command.data.name)) {
+                            console.warn(`⚠️ Pomijam duplikat komendy: ${command.data.name}`);
+                            continue;
+                        }
+                        seenCommands.add(command.data.name);
+                        
                         client.commands.set(command.data.name, command);
                         client.categoryMap.set(command.data.name, category);
                         commandsJSON.push(command.data.toJSON());
@@ -114,12 +181,21 @@ async function registerCommands(commandsJSON) {
 
         console.log('🔄 Rejestrowanie komend...');
 
+        // Najpierw wyczyść wszystkie komendy (zapobiega duplikatom)
+        try {
+            await rest.put(Routes.applicationCommands(clientId), { body: [] });
+            console.log('✅ Wyczyszczono stare komendy');
+        } catch (e) {
+            console.log('⚠️ Nie udało się wyczyścić komend (mogą już nie istnieć)');
+        }
+
+        // Teraz zarejestruj nowe komendy
         await rest.put(
             Routes.applicationCommands(clientId),
             { body: commandsJSON }
         );
 
-        console.log('✅ Komendy zarejestrowane');
+        console.log(`✅ Zarejestrowano ${commandsJSON.length} komend`);
 
     } catch (err) {
 
@@ -187,7 +263,7 @@ async function sendLog(embed) {
 }
 
 // ===========================
-// EVENTY
+// EVENTY - messageDelete
 // ===========================
 client.on('messageDelete', (m) => {
 
@@ -207,16 +283,53 @@ client.on('messageDelete', (m) => {
 
 });
 
-client.on('guildMemberAdd', (member) => {
-
-    const embed = new EmbedBuilder()
-        .setTitle('📥 Nowy użytkownik')
-        .setColor('Green')
-        .setDescription(`${member.user.tag} dołączył`)
-        .setTimestamp();
-
-    sendLog(embed);
-
+// ===========================
+// PARTNERSTWO - AUTO DETEKCJA I ODPOWIEDŹ
+// ===========================
+client.on('messageCreate', async (message) => {
+    // Ignoruj wiadomości od botów
+    if (message.author.bot) return;
+    
+    // Sprawdź czy wiadomość zawiera invite link
+    const hasInvite = inviteRegex.test(message.content);
+    
+    // Reset regex lastIndex
+    inviteRegex.lastIndex = 0;
+    
+    if (hasInvite) {
+        // Dodaj partnership
+        addPartnership(message.author.id, message.author.tag);
+        
+        // Pobierz statystyki
+        const count = getUserPartnershipCount(message.author.id);
+        const ranking = getUserRanking(message.author.id);
+        
+        // Wyślij odpowiedź
+        const embed = new EmbedBuilder()
+            .setTitle('🤝 Dziękujemy za partnerstwo!')
+            .setColor('#5865F2')
+            .setDescription(`Dziękujemy za polecenie serwera, ${message.author}! 🎉`)
+            .addFields(
+                { name: 'Twoja ilość partnerstw', value: `${count}`, inline: true },
+                { name: 'Twój ranking', value: `#${ranking}`, inline: true }
+            )
+            .setTimestamp();
+        
+        await message.reply({ embeds: [embed] });
+        
+        // Loguj partnership
+        const logEmbed = new EmbedBuilder()
+            .setTitle('🤝 Nowe partnerstwo')
+            .setColor('Green')
+            .addFields(
+                { name: 'Użytkownik', value: message.author.tag, inline: true },
+                { name: 'Ilość', value: `${count}`, inline: true },
+                { name: 'Kanał', value: `${message.channel}`, inline: true }
+            )
+            .setTimestamp();
+        
+        sendLog(logEmbed);
+    }
 });
 
 // ===========================
@@ -244,16 +357,25 @@ client.on('interactionCreate', async interaction => {
     if (!interaction.isChatInputCommand()) return;
 
     const command = client.commands.get(interaction.commandName);
-    if (!command) return;
+    if (!command) {
+        console.log(`❌ Komenda ${interaction.commandName} nie została znaleziona`);
+        return;
+    }
 
     try {
-
         await command.execute(interaction);
-
     } catch (err) {
-
-        console.error(err);
-
+        console.error(`❌ Błąd wykonania komendy ${interaction.commandName}:`, err);
+        
+        try {
+            if (interaction.replied || interaction.deferred) {
+                await interaction.followUp({ content: '❌ Wystąpił błąd podczas wykonania tej komendy.', ephemeral: true });
+            } else {
+                await interaction.reply({ content: '❌ Wystąpił błąd podczas wykonania tej komendy.', ephemeral: true });
+            }
+        } catch (e) {
+            console.error('❌ Nie można wysłać wiadomości błędu:', e);
+        }
     }
 
 });

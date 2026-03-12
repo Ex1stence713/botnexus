@@ -7,7 +7,14 @@ export const data = new SlashCommandBuilder()
 
 export async function execute(interaction) {
   const user = interaction.options.getUser('target') || interaction.user;
-  const member = await interaction.guild.members.fetch(user.id);
+  
+  // Próba pobrania członka serwera (może być null jeśli użytkownik nie jest na serwerze)
+  let member = null;
+  try {
+    member = await interaction.guild.members.fetch(user.id).catch(() => null);
+  } catch (e) {
+    member = null;
+  }
 
   const embed = new EmbedBuilder()
     .setTitle(`Informacje o ${user.username}`)
@@ -16,8 +23,8 @@ export async function execute(interaction) {
     .addFields(
       { name: '🆔 ID', value: user.id, inline: true },
       { name: '📅 Konto założono', value: `<t:${Math.floor(user.createdTimestamp / 1000)}:R>`, inline: true },
-      { name: '📥 Dołączył na serwer', value: `<t:${Math.floor(member.joinedTimestamp / 1000)}:R>`, inline: true },
-      { name: '👑 Najwyższa rola', value: `${member.roles.highest}`, inline: true }
+      { name: '📥 Dołączył na serwer', value: member ? `<t:${Math.floor(member.joinedTimestamp / 1000)}:R>` : 'Brak danych', inline: true },
+      { name: '👑 Najwyższa rola', value: member ? `${member.roles.highest}` : 'Brak', inline: true }
     )
     .setFooter({ text: `Zapytanie od: ${interaction.user.tag}` });
 
