@@ -1,18 +1,13 @@
-import { 
-    Client, 
-    Collection, 
-    GatewayIntentBits, 
-    REST, 
-    Routes, 
-    ActionRowBuilder, 
-    ButtonBuilder, 
-    ButtonStyle, 
-    PermissionsBitField,
-    ChannelType,
-    MessageFlags,
+import {
+    Client,
+    Collection,
+    GatewayIntentBits,
+    REST,
+    Routes,
     ActivityType,
-    EmbedBuilder 
+    EmbedBuilder
 } from 'discord.js';
+
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
@@ -20,16 +15,24 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-// ==========================================
-//              KONFIGURACJA ID
-// ==========================================
-// Wpisz ID kanałów bezpośrednio tutaj:
-const LOG_CHANNEL_ID = 'TU_WLEJ_ID_LOGOW';        
-const STATUS_CHANNEL_ID = 'TU_WLEJ_ID_STATUSU';  
-// ==========================================
+// ===========================
+// KONFIGURACJA
+// ===========================
+const LOG_CHANNEL_ID = 'TU_WLEJ_ID_LOGOW';
+const STATUS_CHANNEL_ID = 'TU_WLEJ_ID_STATUSU';
 
 const token = process.env.BOT_TOKEN;
-const clientId = process.env.CLIENT_ID; // Upewnij się, że w .env masz CLIENT_ID=...
+const clientId = process.env.CLIENT_ID;
+
+if (!token) {
+    console.error('❌ Brak BOT_TOKEN w pliku .env');
+    process.exit(1);
+}
+
+if (!clientId) {
+    console.error('❌ Brak CLIENT_ID w pliku .env');
+    process.exit(1);
+}
 
 const client = new Client({
     intents: [
@@ -42,53 +45,90 @@ const client = new Client({
     ]
 });
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 client.commands = new Collection();
 
-// --- 1. LOADER KOMEND ---
-const commandsPath = path.join(__dirname, 'commands');
-const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js') || file.endsWith('.cjs'));
-const commandsJSON = [];
-const loadedCommandsNames = [];
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-for (const file of commandFiles) {
-    const filePath = pathToFileURL(path.join(commandsPath, file)).href;
-    try {
-        const commandModule = await import(filePath);
-        const command = commandModule.default || commandModule;
-        if (command.data && command.execute) {
-            client.commands.set(command.data.name, command);
-            commandsJSON.push(command.data.toJSON());
-            loadedCommandsNames.push(`\`/${command.data.name}\``);
+// ===========================
+// LOADER KOMEND
+// ===========================
+async function loadCommands() {
+
+    const commandsPath = path.join(__dirname, 'commands');
+
+    if (!fs.existsSync(commandsPath)) {
+        console.warn('⚠️ Folder commands nie istnieje.');
+        return { commandsJSON: [], loadedNames: [] };
+    }
+
+    const commandFiles = fs.readdirSync(commandsPath)
+        .filter(file => file.endsWith('.js') || file.endsWith('.cjs'));
+
+    const commandsJSON = [];
+    const loadedNames = [];
+
+    for (const file of commandFiles) {
+
+        const filePath = pathToFileURL(path.join(commandsPath, file)).href;
+
+        try {
+
+            const module = await import(filePath);
+            const command = module.default || module;
+
+            if (command.data && command.execute) {
+
+                client.commands.set(command.data.name, command);
+                commandsJSON.push(command.data.toJSON());
+                loadedNames.push(`/${command.data.name}`);
+
+            }
+
+        } catch (err) {
+
+            console.error(`❌ Błąd ładowania ${file}`, err);
+
         }
-    } catch (e) { console.error(`❌ Błąd ładowania ${file}: ${e.message}`); }
+
+    }
+
+    return { commandsJSON, loadedNames };
 }
 
-// --- 2. REJESTRACJA KOMEND SLASH (Poprawione undefined) ---
-const rest = new REST({ version: '10' }).setToken(token);
+// ===========================
+// REJESTRACJA KOMEND
+// ===========================
+async function registerCommands(commandsJSON) {
 
-(async () => {
+    const rest = new REST({ version: '10' }).setToken(token);
+
     try {
-        if (!clientId) {
-            console.error('❌ BŁĄD: CLIENT_ID jest undefined! Sprawdź plik .env.');
-            return;
-        }
 
-        console.log('🔄 Rejestrowanie komend (/) dla aplikacji...');
+        console.log('🔄 Rejestrowanie komend...');
+
         await rest.put(
-            Routes.applicationCommands(clientId), // To ID musi być poprawne
-            { body: commandsJSON },
+            Routes.applicationCommands(clientId),
+            { body: commandsJSON }
         );
-        console.log('✅ Komendy zarejestrowane pomyślnie.');
-    } catch (error) {
-        console.error('❌ Błąd rejestracji:', error);
-    }
-})();
 
-// --- 3. FUNKCJA PUBLICZNEGO STATUSU (Live Stats) ---
+        console.log('✅ Komendy zarejestrowane');
+
+    } catch (err) {
+
+        console.error('❌ Błąd rejestracji komend', err);
+
+    }
+
+}
+
+// ===========================
+// STATUS PUBLICZNY
+// ===========================
 async function updatePublicStatus() {
+
     try {
+
         const channel = await client.channels.fetch(STATUS_CHANNEL_ID).catch(() => null);
         if (!channel) return;
 
@@ -96,64 +136,129 @@ async function updatePublicStatus() {
         const hours = Math.floor(uptime / 60);
         const mins = uptime % 60;
 
-        const statusEmbed = new EmbedBuilder()
-            .setTitle('📊 Monitor Systemowy Nexus')
+        const embed = new EmbedBuilder()
+            .setTitle('📊 Status Bota')
             .setColor(client.ws.ping < 100 ? '#2ecc71' : '#f1c40f')
             .addFields(
-                { name: '🟢 Status', value: 'Działa poprawnie', inline: true },
-                { name: '⚡ Ping', value: `\`${client.ws.ping}ms\``, inline: true },
-                { name: '⏳ Uptime', value: `\`${hours}h ${mins}m\``, inline: true },
-                { name: '🕒 Aktualizacja', value: `<t:${Math.floor(Date.now() / 1000)}:R>`, inline: false }
+                { name: 'Status', value: 'Online', inline: true },
+                { name: 'Ping', value: `${client.ws.ping}ms`, inline: true },
+                { name: 'Uptime', value: `${hours}h ${mins}m`, inline: true }
             )
-            .setFooter({ text: 'Odświeżane co 60s' })
             .setTimestamp();
 
         const messages = await channel.messages.fetch({ limit: 10 });
-        const lastBotMsg = messages.find(m => m.author.id === client.user.id);
+        const botMsg = messages.find(m => m.author.id === client.user.id);
 
-        if (lastBotMsg) await lastBotMsg.edit({ embeds: [statusEmbed] });
-        else await channel.send({ embeds: [statusEmbed] });
-    } catch (e) { console.error('Błąd statusu:', e); }
+        if (botMsg) {
+            await botMsg.edit({ embeds: [embed] });
+        } else {
+            await channel.send({ embeds: [embed] });
+        }
+
+    } catch (err) {
+
+        console.error('❌ Błąd statusu', err);
+
+    }
+
 }
 
-// --- 4. FUNKCJA LOGUJĄCA ---
+// ===========================
+// LOGI
+// ===========================
 async function sendLog(embed) {
-    const channel = client.channels.cache.get(LOG_CHANNEL_ID);
-    if (channel) channel.send({ embeds: [embed] }).catch(() => {});
+
+    try {
+
+        const channel = await client.channels.fetch(LOG_CHANNEL_ID).catch(() => null);
+        if (!channel) return;
+
+        channel.send({ embeds: [embed] });
+
+    } catch {}
+
 }
 
-// --- 5. LOGI ZDARZEŃ ---
+// ===========================
+// EVENTY
+// ===========================
 client.on('messageDelete', (m) => {
+
     if (m.author?.bot) return;
-    sendLog(new EmbedBuilder().setTitle('🗑️ Wiadomość usunięta').setColor('Red')
-    .addFields({name:'Autor', value:`${m.author?.tag}`, inline:true}, {name:'Kanał', value:`${m.channel}`, inline:true}, {name:'Treść', value:m.content || 'Plik/Embed'})
-    .setTimestamp());
+
+    const embed = new EmbedBuilder()
+        .setTitle('🗑️ Wiadomość usunięta')
+        .setColor('Red')
+        .addFields(
+            { name: 'Autor', value: m.author?.tag || 'Nieznany', inline: true },
+            { name: 'Kanał', value: `${m.channel}`, inline: true },
+            { name: 'Treść', value: m.content || 'Embed / plik' }
+        )
+        .setTimestamp();
+
+    sendLog(embed);
+
 });
 
 client.on('guildMemberAdd', (member) => {
-    sendLog(new EmbedBuilder().setTitle('📥 Nowy gracz').setColor('Green').setDescription(`${member.user.tag} dołączył.`).setTimestamp());
+
+    const embed = new EmbedBuilder()
+        .setTitle('📥 Nowy użytkownik')
+        .setColor('Green')
+        .setDescription(`${member.user.tag} dołączył`)
+        .setTimestamp();
+
+    sendLog(embed);
+
 });
 
-// --- 6. START BOTA ---
-client.once('clientReady', (c) => {
-    console.log(`🚀 Zalogowano jako ${c.user.tag}`);
-    c.user.setPresence({ activities: [{ name: '/pomoc', type: ActivityType.Listening }], status: 'online' });
+// ===========================
+// START
+// ===========================
+client.once('ready', async () => {
 
-    // Raport startowy dla logów
-    sendLog(new EmbedBuilder().setTitle('🤖 Restart Systemu').setColor('Blue')
-    .addFields({ name: '📂 Komendy:', value: loadedCommandsNames.join(', ') || 'Brak' }).setTimestamp());
+    console.log(`🚀 Zalogowano jako ${client.user.tag}`);
 
-    // Uruchomienie auto-odświeżania statusu co 1 min
+    client.user.setPresence({
+        activities: [{ name: '/pomoc', type: ActivityType.Listening }],
+        status: 'online'
+    });
+
     updatePublicStatus();
-    setInterval(updatePublicStatus, 60000); 
+    setInterval(updatePublicStatus, 60000);
+
 });
 
-// --- 7. OBSŁUGA INTERAKCJI ---
-client.on('interactionCreate', async (interaction) => {
-    if (interaction.isChatInputCommand()) {
-        const command = client.commands.get(interaction.commandName);
-        if (command) await command.execute(interaction).catch(() => {});
+// ===========================
+// INTERAKCJE
+// ===========================
+client.on('interactionCreate', async interaction => {
+
+    if (!interaction.isChatInputCommand()) return;
+
+    const command = client.commands.get(interaction.commandName);
+    if (!command) return;
+
+    try {
+
+        await command.execute(interaction);
+
+    } catch (err) {
+
+        console.error(err);
+
     }
+
 });
 
-client.login(token);
+// ===========================
+// INIT
+// ===========================
+(async () => {
+
+    const { commandsJSON } = await loadCommands();
+    await registerCommands(commandsJSON);
+
+    client.login(token);
+
+})();
