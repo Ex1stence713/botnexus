@@ -4,7 +4,7 @@ export default {
   name: "guildMemberRemove",
   
   async execute(member) {
-    const channelId = "1463630782412357785";
+    const channelId = "1463630783418994723";
     const channel = member.guild.channels.cache.get(channelId);
     if (!channel) return;
 
