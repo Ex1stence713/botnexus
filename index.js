@@ -16,6 +16,42 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 // ===========================
+// KONFIGURACJA
+// ===========================
+const LOG_CHANNEL_ID = '1479629372158902373';
+const STATUS_CHANNEL_ID = '1479630853054267412';
+
+const token = process.env.BOT_TOKEN;
+const clientId = process.env.CLIENT_ID;
+
+if (!token) {
+    console.error('❌ Brak BOT_TOKEN w pliku .env');
+    process.exit(1);
+}
+
+if (!clientId) {
+    console.error('❌ Brak CLIENT_ID w pliku .env');
+    process.exit(1);
+}
+
+const client = new Client({
+    intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMembers,
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.MessageContent,
+        GatewayIntentBits.DirectMessages,
+        GatewayIntentBits.GuildModeration
+    ]
+});
+
+client.commands = new Collection();
+client.categoryMap = new Map();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// ===========================
 // PARTNERSTWO - DATA STORAGE
 // ===========================
 const partnershipsFile = path.join(__dirname, 'data', 'partnerships.json');
@@ -73,42 +109,6 @@ function addPartnership(userId, username) {
 
 // Regex do wykrywania invite linków Discord
 const inviteRegex = /(?:discord\.gg\/|discord(?:app)?\.com\/|discord\.gg\/)[a-zA-Z0-9]+/gi;
-
-// ===========================
-// KONFIGURACJA
-// ===========================
-const LOG_CHANNEL_ID = '1479629372158902373';
-const STATUS_CHANNEL_ID = '1479630853054267412';
-
-const token = process.env.BOT_TOKEN;
-const clientId = process.env.CLIENT_ID;
-
-if (!token) {
-    console.error('❌ Brak BOT_TOKEN w pliku .env');
-    process.exit(1);
-}
-
-if (!clientId) {
-    console.error('❌ Brak CLIENT_ID w pliku .env');
-    process.exit(1);
-}
-
-const client = new Client({
-    intents: [
-        GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMembers,
-        GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.MessageContent,
-        GatewayIntentBits.DirectMessages,
-        GatewayIntentBits.GuildModeration
-    ]
-});
-
-client.commands = new Collection();
-client.categoryMap = new Map();
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 // ===========================
 // REKURENCYJNE ŁADOWANIE KOMEND
