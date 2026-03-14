@@ -111,6 +111,55 @@ function addPartnership(userId, username) {
 const inviteRegex = /(?:discord\.gg\/|discord(?:app)?\.com\/|discord\.gg\/)[a-zA-Z0-9]+/gi;
 
 // ===========================
+// AUTOMOD - KONFIGURACJA
+// ===========================
+const automodFile = path.join(__dirname, 'data', 'automod.json');
+
+function loadAutomodConfig() {
+    try {
+        if (fs.existsSync(automodFile)) {
+            const data = fs.readFileSync(automodFile, 'utf8');
+            return JSON.parse(data);
+        }
+    } catch (err) {
+        console.error('❌ Błąd ładowania automod:', err);
+    }
+    return { enabled: false };
+}
+
+function saveAutomodConfig(config) {
+    try {
+        fs.writeFileSync(automodFile, JSON.stringify(config, null, 2));
+    } catch (err) {
+        console.error('❌ Błąd zapisywania automod:', err);
+    }
+}
+
+// Funkcja sprawdzająca czy użytkownik ma ignorowaną rolę
+function hasIgnoredRole(message, config) {
+    if (!message.member) return false;
+    const memberRoles = message.member.roles.cache;
+    for (const role of memberRoles.values()) {
+        if (config.ignoredRoles?.includes(role.id)) return true;
+    }
+    return false;
+}
+
+// Funkcja sprawdzająca czy kanał jest ignorowany
+function isIgnoredChannel(message, config) {
+    return config.ignoredChannels?.includes(message.channel.id);
+}
+
+// Sprawdź czy wiadomość zawiera złe słowa
+function containsBadWords(message, config) {
+    const badWords = config.badWords || [];
+    if (badWords.length === 0) return false;
+    
+    const content = message.content.toLowerCase();
+    return badWords.some(word => content.includes(word.toLowerCase()));
+}
+
+// ===========================
 // REKURENCYJNE ŁADOWANIE KOMEND
 // ===========================
 async function loadCommands() {
@@ -360,6 +409,89 @@ client.on('messageCreate', async (message) => {
             .setTimestamp();
         
         sendLog(logEmbed);
+    }
+    
+    // ===========================
+    // AUTOMOD - FILTR SŁÓW I ZAPROSZEŃ
+    // ===========================
+    const automod = loadAutomodConfig();
+    
+    // Sprawdź czy automod jest włączony
+    if (!automod.enabled) return;
+    
+    // Sprawdź ignorowane kanały i role
+    if (isIgnoredChannel(message, automod)) return;
+    if (hasIgnoredRole(message, automod)) return;
+    
+    // Sprawdź czy wiadomość zawiera invite link
+    inviteRegex.lastIndex = 0;
+    const hasInviteLink = inviteRegex.test(message.content);
+    
+    // Anti-Invite: usuń wiadomość z zaproszeniem
+    if (hasInviteLink && automod.antiInvite) {
+        if (automod.deleteInviteMessage) {
+            try {
+                await message.delete();
+                
+                const warnEmbed = new EmbedBuilder()
+                    .setTitle('⚠️ Zaproszenia są zabronione')
+                    .setColor('Red')
+                    .setDescription(`${message.author}, nie wolno publikować linków do innych serwerów!`)
+                    .setFooter({ text: 'Zaproszenie zostało usunięte' });
+                
+                await message.channel.send({ embeds: [warnEmbed] }).then(msg => {
+                    setTimeout(() => msg.delete().catch(() => {}), 5000);
+                });
+                
+                // Loguj
+                const logEmbed = new EmbedBuilder()
+                    .setTitle('🛡️ Usunięto zaproszenie')
+                    .setColor('Orange')
+                    .addFields(
+                        { name: 'Użytkownik', value: message.author.tag, inline: true },
+                        { name: 'Kanał', value: `${message.channel}`, inline: true }
+                    )
+                    .setTimestamp();
+                sendLog(logEmbed);
+                
+            } catch (err) {
+                console.error('❌ Błąd usuwania zaproszenia:', err);
+            }
+        }
+        return; // Przerwij bo wiadomość została usunięta
+    }
+    
+    // Filtr słów: sprawdź złe słowa
+    if (containsBadWords(message, automod)) {
+        if (automod.deleteBadMessage) {
+            try {
+                await message.delete();
+                
+                const warnEmbed = new EmbedBuilder()
+                    .setTitle('⚠️ Niedozwolone słowo')
+                    .setColor('Red')
+                    .setDescription(`${message.author}, Twoja wiadomość zawiera niedozwolone słowa!`)
+                    .setFooter({ text: 'Wiadomość została usunięta' });
+                
+                await message.channel.send({ embeds: [warnEmbed] }).then(msg => {
+                    setTimeout(() => msg.delete().catch(() => {}), 5000);
+                });
+                
+                // Loguj
+                const logEmbed = new EmbedBuilder()
+                    .setTitle('🛡️ Usunięto wiadomość (złe słowo)')
+                    .setColor('Red')
+                    .addFields(
+                        { name: 'Użytkownik', value: message.author.tag, inline: true },
+                        { name: 'Kanał', value: `${message.channel}`, inline: true }
+                    )
+                    .setTimestamp();
+                sendLog(logEmbed);
+                
+            } catch (err) {
+                console.error('❌ Błąd usuwania wiadomości:', err);
+            }
+        }
     }
 });
 

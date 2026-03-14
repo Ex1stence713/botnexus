@@ -1,0 +1,11 @@
+{
+  "enabled": true,
+  "badWords": [],
+  "antiInvite": true,
+  "warnOnBadWord": true,
+  "warnOnInvite": true,
+  "deleteBadMessage": true,
+  "deleteInviteMessage": true,
+  "ignoredChannels": [],
+  "ignoredRoles": []
+}

@@ -2,15 +2,15 @@ import { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder } from 'discord.
 
 export const data = new SlashCommandBuilder()
   .setName('dm')
-  .setDescription('Wyślij prywatną wiadomość do użytkownika (DM).')
-  .addUserOption(opt => opt.setName('user').setDescription('Użytkownik, do którego wysyłasz DM').setRequired(true))
+  .setDescription('Wyślij prywatną wiadomość do wszystkich użytkowników z określoną rolą.')
+  .addRoleOption(opt => opt.setName('rola').setDescription('Rola, do której wysyłasz wiadomość').setRequired(true))
   .addStringOption(opt => opt.setName('message').setDescription('Treść wiadomości').setRequired(true))
   .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild);
 
 export async function execute(interaction) {
   await interaction.deferReply({ ephemeral: true });
 
-  const target = interaction.options.getUser('user');
+  const role = interaction.options.getRole('rola');
   const text = interaction.options.getString('message');
 
   // Zabezpieczenie: tylko właściciel bota lub osoby z uprawnieniami ManageGuild mogą użyć komendy
@@ -29,33 +29,55 @@ export async function execute(interaction) {
     return interaction.editReply({ content: 'Wiadomość jest za długa — max 2000 znaków.' });
   }
 
-  // Próba wysłania DM
-  try {
-    // Tworzymy embed dla wiadomości
-    const dmEmbed = new EmbedBuilder()
-      .setTitle('📨 Nowa Wiadomość')
-      .setDescription(text)
-      .setColor(0x5865F2) // Discord niebieskie
-      .addFields(
-        { name: '👤 Od', value: interaction.user.tag, inline: true },
-        { name: '🏢 Serwer', value: interaction.guild?.name ?? 'DM', inline: true },
-        { name: '⏰ Czas', value: `<t:${Math.floor(Date.now() / 1000)}:f>`, inline: false }
-      )
-      .setThumbnail(interaction.user.displayAvatarURL({ dynamic: true }))
-      .setFooter({ text: 'Wiadomość wysłana przez bota serwera' })
-      .setTimestamp();
+  // Pobierz wszystkich członków serwera z daną rolą
+  const guild = interaction.guild;
+  const roleMembers = role.members;
 
-    await target.send({ embeds: [dmEmbed] });
-
-    // Log
-    console.log(`DM wysłane do ${target.tag} (${target.id}) przez ${interaction.user.tag}`);
-
-    return interaction.editReply({ content: `✅ Wiadomość wysłana do ${target.tag}.` });
-  } catch (err) {
-    // Możliwe powody błędu: użytkownik ma zablokowane DMy od serwera/bota, bot zbanowany itp.
-    console.error('Błąd przy wysyłaniu DM:', err);
-    return interaction.editReply({
-      content: `❌ Nie udało się wysłać DM — możliwe, że użytkownik ma zablokowane prywatne wiadomości lub wystąpił błąd.`,
-    });
+  if (roleMembers.size === 0) {
+    return interaction.editReply({ content: `Nie znaleziono użytkowników z rolą ${role.name}.` });
   }
+
+  // Tworzymy embed dla wiadomości
+  const dmEmbed = new EmbedBuilder()
+    .setTitle('📨 Nowa Wiadomość')
+    .setDescription(text)
+    .setColor(0x5865F2) // Discord niebieskie
+    .addFields(
+      { name: '👤 Od', value: interaction.user.tag, inline: true },
+      { name: '🏢 Serwer', value: interaction.guild?.name ?? 'DM', inline: true },
+      { name: '⏰ Czas', value: `<t:${Math.floor(Date.now() / 1000)}:f>`, inline: false }
+    )
+    .setThumbnail(interaction.user.displayAvatarURL({ dynamic: true }))
+    .setFooter({ text: 'Wiadomość wysłana przez bota serwera' })
+    .setTimestamp();
+
+  // Wysyłanie wiadomości do wszystkich członków z rolą
+  let successCount = 0;
+  let failCount = 0;
+  const failedUsers = [];
+
+  for (const [memberId, memberUser] of roleMembers) {
+    try {
+      await memberUser.send({ embeds: [dmEmbed] });
+      successCount++;
+    } catch (err) {
+      failCount++;
+      failedUsers.push(memberUser.tag);
+      console.error(`Błąd przy wysyłaniu DM do ${memberUser.tag}:`, err);
+    }
+  }
+
+  // Log
+  console.log(`Wiadomość wysłana do ${successCount} użytkowników z rolą ${role.name} przez ${interaction.user.tag}`);
+
+  let responseContent = `✅ Wiadomość wysłana do **${successCount}** użytkowników z rolą ${role.name}.`;
+  
+  if (failCount > 0) {
+    responseContent += `\n❌ Nie udało się wysłać do **${failCount}** użytkowników.`;
+    if (failedUsers.length <= 5) {
+      responseContent += `\nNiepowodzenia: ${failedUsers.join(', ')}`;
+    }
+  }
+
+  return interaction.editReply({ content: responseContent });
 }
