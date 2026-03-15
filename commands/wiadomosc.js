@@ -70,14 +70,22 @@ export async function execute(interaction) {
   // Log
   console.log(`Wiadomość wysłana do ${successCount} użytkowników z rolą ${role.name} przez ${interaction.user.tag}`);
 
-  let responseContent = `✅ Wiadomość wysłana do **${successCount}** użytkowników z rolą ${role.name}.`;
-  
-  if (failCount > 0) {
-    responseContent += `\n❌ Nie udało się wysłać do **${failCount}** użytkowników.`;
-    if (failedUsers.length <= 5) {
-      responseContent += `\nNiepowodzenia: ${failedUsers.join(', ')}`;
-    }
+  // Embed z wynikami
+  const resultEmbed = new EmbedBuilder()
+    .setTitle('✅ Wysyłanie zakończone')
+    .setColor(failCount > 0 ? 0xFEE75C : 0x57F287)
+    .addFields(
+      { name: '✅ Wysłane', value: `${successCount}`, inline: true },
+      { name: '❌ Niepowodzenia', value: `${failCount}`, inline: true },
+      { name: '👥 Rola', value: role.name, inline: false }
+    )
+    .setTimestamp();
+
+  if (failedUsers.length > 0 && failedUsers.length <= 5) {
+    resultEmbed.addFields(
+      { name: '⚠️ Niepowodzenia', value: failedUsers.join(', '), inline: false }
+    );
   }
 
-  return interaction.editReply({ content: responseContent });
+  return interaction.editReply({ embeds: [resultEmbed] });
 }
