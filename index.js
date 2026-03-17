@@ -12,6 +12,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
 import dotenv from 'dotenv';
+import { setupVoiceEvents, setControlChannel } from './commands/autokanal.js';
 
 dotenv.config();
 
@@ -21,6 +22,10 @@ dotenv.config();
 const PREFIX = '!'; // Prefix komend
 const LOG_CHANNEL_ID = '1479629372158902373';
 const STATUS_CHANNEL_ID = '1479630853054267412';
+
+// Wczytaj config
+import config from './config.json' assert { type: 'json' };
+const VOICE_CONTROL_CHANNEL = config.voiceControlChannel || '1479630853054267412';
 
 const token = process.env.BOT_TOKEN;
 const clientId = process.env.CLIENT_ID;
@@ -42,7 +47,8 @@ const client = new Client({
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
         GatewayIntentBits.DirectMessages,
-        GatewayIntentBits.GuildModeration
+        GatewayIntentBits.GuildModeration,
+        GatewayIntentBits.GuildVoiceStates
     ]
 });
 
@@ -563,6 +569,10 @@ client.once('ready', async () => {
 
     updatePublicStatus();
     setInterval(updatePublicStatus, 60000);
+    
+    // Setup autokanały
+    setupVoiceEvents(client);
+    setControlChannel(VOICE_CONTROL_CHANNEL);
 
 });
 
