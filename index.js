@@ -292,36 +292,73 @@ async function updatePublicStatus() {
         let statusColor = '#2ecc71'; // zielony
         let statusEmoji = '🟢';
         let statusText = 'Online';
+        let pingBar = '🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩';
         
         if (ping >= 200) {
             statusColor = '#e74c3c'; // czerwony
             statusEmoji = '🔴';
-            statusText = 'Lag';
+            statusText = '⚠️ Lag';
+            pingBar = '🟥🟥🟥🟥🟥🟥🟥🟥🟥🟥';
+        } else if (ping >= 150) {
+            statusColor = '#f39c12'; // pomarańczowy
+            statusEmoji = '🟠';
+            statusText = '🟡 Online';
+            pingBar = '🟧🟧🟧🟧🟧🟧🟧🟧🟧🟧';
         } else if (ping >= 100) {
             statusColor = '#f1c40f'; // żółty
             statusEmoji = '🟡';
             statusText = 'Online';
+            // Częściowo zielony, częściowo żółty
+            pingBar = '🟩🟩🟩🟩🟩🟩🟩🟨🟨🟨';
+        } else if (ping >= 50) {
+            // Głównie zielony z małym żółtym
+            pingBar = '🟩🟩🟩🟩🟩🟩🟩🟩🟩🟨';
         }
         
         // Format uptime
         const uptimeStr = days > 0 
             ? `${days}d ${hours}h ${mins}m` 
             : `${hours}h ${mins}m`;
+        
+        // Pasek uptime
+        const uptimePercent = Math.min(100, (uptimeMs % 86400000) / 8640000);
+        const uptimeBarLength = 10;
+        const uptimeBars = Math.round((uptimePercent / 100) * uptimeBarLength);
+        const uptimeBar = '█'.repeat(uptimeBars) + '░'.repeat(uptimeBarLength - uptimeBars);
+
+        // Statystyki
+        const guilds = client.guilds.cache.size;
+        const users = client.users.cache.size;
+        const channels = client.channels.cache.size;
+        
+        // Pobierz info o największym serwerze
+        let biggestGuild = 'Brak';
+        let biggestGuildMembers = 0;
+        client.guilds.cache.forEach(guild => {
+            if (guild.memberCount > biggestGuildMembers) {
+                biggestGuildMembers = guild.memberCount;
+                biggestGuild = guild.name;
+            }
+        });
 
         const embed = new EmbedBuilder()
-            .setTitle(`${statusEmoji} Status Bota`)
+            .setTitle(`${statusEmoji} Status Bota - Nexus`)
             .setColor(statusColor)
-            .setThumbnail(client.user.displayAvatarURL({ size: 128 }))
+            .setThumbnail(client.user.displayAvatarURL({ size: 256 }))
+            .setDescription(`**${statusText}** | Wersja: 1.0.0`)
             .addFields(
-                { name: '💠 Status', value: statusText, inline: true },
-                { name: '📡 Ping', value: `\`${ping}ms\``, inline: true },
-                { name: '⏱️ Uptime', value: `\`${uptimeStr}\``, inline: true },
-                { name: '👥 Serwery', value: `\`${client.guilds.cache.size}\``, inline: true },
-                { name: '👤 Użytkownicy', value: `\`${client.users.cache.size}\``, inline: true },
-                { name: '📝 Kanały', value: `\`${client.channels.cache.size}\``, inline: true }
+                { name: `${statusEmoji} Status`, value: `\`${statusText}\``, inline: true },
+                { name: '📡 Ping', value: `\`${ping}ms\` ${pingBar}`, inline: true },
+                { name: '⏱️ Uptime', value: `\`${uptimeStr}\`
+${uptimeBar}`, inline: true },
+                { name: '─────────────────', value: '**📊 Statystyki:**', inline: false },
+                { name: '🏢 Serwery', value: `\`${guilds}\``, inline: true },
+                { name: '👥 Użytkownicy', value: `\`${users}\``, inline: true },
+                { name: '💬 Kanały', value: `\`${channels}\``, inline: true },
+                { name: '👑 Największy serwer', value: `\`${biggestGuild}\` (${biggestGuildMembers} członków)`, inline: false }
             )
             .setFooter({ 
-                text: `Nexus Bot • Aktualizacja: ${new Date().toLocaleTimeString('pl-PL')}`,
+                text: `Nexus Bot • Zaktualizowano: ${new Date().toLocaleString('pl-PL')}`,
                 iconURL: client.user.displayAvatarURL({ size: 32 })
             })
             .setTimestamp();
