@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } from 'discord.js';
+import { EmbedBuilder } from 'discord.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -29,49 +29,20 @@ function saveAutomod(config) {
     fs.writeFileSync(automodFile, JSON.stringify(config, null, 2));
 }
 
-export const data = new SlashCommandBuilder()
-    .setName('automod')
-    .setDescription('Zarządzanie automatyczną moderacją')
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
-    .addSubcommand(sub => sub
-        .setName('status')
-        .setDescription('Pokaż status automoderacji'))
-    .addSubcommand(sub => sub
-        .setName('wlacz')
-        .setDescription('Włącz automoderację'))
-    .addSubcommand(sub => sub
-        .setName('wylacz')
-        .setDescription('Wyłącz automoderację'))
-    .addSubcommand(sub => sub
-        .setName('antiinvite')
-        .setDescription('Włącz/wyłącz blokowanie zaproszeń')
-        .addBooleanOption(opt => opt.setName('wlacz').setDescription('Włącz lub wyłącz').setRequired(true)))
-    .addSubcommand(sub => sub
-        .setName('addbadword')
-        .setDescription('Dodaj złe słowo do filtra')
-        .addStringOption(opt => opt.setName('slowo').setDescription('Słowo do zablokowania').setRequired(true)))
-    .addSubcommand(sub => sub
-        .setName('removebadword')
-        .setDescription('Usuń złe słowo z filtra')
-        .addStringOption(opt => opt.setName('slowo').setDescription('Słowo do usunięcia').setRequired(true)))
-    .addSubcommand(sub => sub
-        .setName('badwords')
-        .setDescription('Pokaż listę złych słów'))
-    .addSubcommand(sub => sub
-        .setName('ignorechannel')
-        .setDescription('Dodaj/usuń kanał z ignorowanych')
-        .addChannelOption(opt => opt.setName('kanal').setDescription('Kanał').setRequired(true))
-        .addBooleanOption(opt => opt.setName('dodaj').setDescription('Dodać czy usunąć?').setRequired(true)))
-    .addSubcommand(sub => sub
-        .setName('ignorerole')
-        .setDescription('Dodaj/usuń rolę z ignorowanych')
-        .addRoleOption(opt => opt.setName('rola').setDescription('Rola').setRequired(true))
-        .addBooleanOption(opt => opt.setName('dodaj').setDescription('Dodać czy usunąć?').setRequired(true)));
+export const name = 'automod';
+export const description = 'Zarządzanie automatyczną moderacją';
 
-export async function execute(interaction) {
-    const sub = interaction.options.getSubcommand();
-    const automod = loadAutomod();
+export async function execute(message, args) {
+    if (!message.member?.permissions.has('ManageMessages')) {
+        return message.reply('Nie masz uprawnień do zarządzania wiadomościami!');
+    }
     
+    if (args.length === 0) {
+        return message.reply('Podaj akcję! Użycie: !automod <status|wlacz|wylacz|antiinvite|addbadword|removebadword|badwords|ignorechannel|ignorerole>');
+    }
+    
+    const sub = args[0].toLowerCase();
+    const automod = loadAutomod();
     const embed = new EmbedBuilder().setTimestamp();
     
     switch(sub) {
@@ -85,34 +56,39 @@ export async function execute(interaction) {
                     { name: 'Ignorowane kanały', value: automod.ignoredChannels?.length > 0 ? `${automod.ignoredChannels.length}` : 'Brak', inline: true },
                     { name: 'Ignorowane role', value: automod.ignoredRoles?.length > 0 ? `${automod.ignoredRoles.length}` : 'Brak', inline: true }
                 );
-            await interaction.reply({ embeds: [embed], ephemeral: true });
+            await message.reply({ embeds: [embed] });
             break;
             
         case 'wlacz':
+        case 'enable':
             automod.enabled = true;
             saveAutomod(automod);
             embed.setTitle('✅ Automoderacja włączona').setColor('#2ecc71');
-            await interaction.reply({ embeds: [embed], ephemeral: true });
+            await message.reply({ embeds: [embed] });
             break;
             
         case 'wylacz':
+        case 'disable':
             automod.enabled = false;
             saveAutomod(automod);
             embed.setTitle('❌ Automoderacja wyłączona').setColor('#e74c3c');
-            await interaction.reply({ embeds: [embed], ephemeral: true });
+            await message.reply({ embeds: [embed] });
             break;
             
         case 'antiinvite':
-            const enableInvite = interaction.options.getBoolean('wlacz');
+            const enableInvite = args[1]?.toLowerCase() === 'on' || args[1]?.toLowerCase() === 'wlacz' || args[1]?.toLowerCase() === 'true';
             automod.antiInvite = enableInvite;
             saveAutomod(automod);
             embed.setTitle(enableInvite ? '✅ Anti-Invite włączone' : '❌ Anti-Invite wyłączone')
                 .setColor(enableInvite ? '#2ecc71' : '#e74c3c');
-            await interaction.reply({ embeds: [embed], ephemeral: true });
+            await message.reply({ embeds: [embed] });
             break;
             
         case 'addbadword':
-            const badWord = interaction.options.getString('slowo').toLowerCase();
+            const badWord = args.slice(1).join(' ').toLowerCase();
+            if (!badWord) {
+                return message.reply('Podaj słowo! Użycie: !automod addbadword <słowo>');
+            }
             if (!automod.badWords) automod.badWords = [];
             if (!automod.badWords.includes(badWord)) {
                 automod.badWords.push(badWord);
@@ -121,11 +97,14 @@ export async function execute(interaction) {
             } else {
                 embed.setTitle('⚠️ Słowo już istnieje').setDescription(`\`${badWord}\` jest już na liście`).setColor('#f1c40f');
             }
-            await interaction.reply({ embeds: [embed], ephemeral: true });
+            await message.reply({ embeds: [embed] });
             break;
             
         case 'removebadword':
-            const removeWord = interaction.options.getString('slowo').toLowerCase();
+            const removeWord = args.slice(1).join(' ').toLowerCase();
+            if (!removeWord) {
+                return message.reply('Podaj słowo! Użycie: !automod removebadword <słowo>');
+            }
             if (!automod.badWords) automod.badWords = [];
             const idx = automod.badWords.indexOf(removeWord);
             if (idx > -1) {
@@ -135,7 +114,7 @@ export async function execute(interaction) {
             } else {
                 embed.setTitle('⚠️ Słowo nie istnieje').setDescription(`\`${removeWord}\` nie jest na liście`).setColor('#f1c40f');
             }
-            await interaction.reply({ embeds: [embed], ephemeral: true });
+            await message.reply({ embeds: [embed] });
             break;
             
         case 'badwords':
@@ -143,59 +122,44 @@ export async function execute(interaction) {
             embed.setTitle('📝 Lista złych słów')
                 .setColor('#5865F2')
                 .setDescription(words.length > 0 ? words.map(w => `• \`${w}\``).join('\n') : 'Lista jest pusta');
-            await interaction.reply({ embeds: [embed], ephemeral: true });
+            await message.reply({ embeds: [embed] });
             break;
             
         case 'ignorechannel':
-            const channel = interaction.options.getChannel('kanal');
-            const addChannel = interaction.options.getBoolean('dodaj');
+            if (args.length < 2) {
+                return message.reply('Podaj kanał! Użycie: !automod ignorechannel <#kanał>');
+            }
+            const channelId = args[1].replace(/<#|>/g, '');
             if (!automod.ignoredChannels) automod.ignoredChannels = [];
             
-            if (addChannel) {
-                if (!automod.ignoredChannels.includes(channel.id)) {
-                    automod.ignoredChannels.push(channel.id);
-                    saveAutomod(automod);
-                    embed.setTitle('✅ Dodano kanał do ignorowanych').setDescription(`<#${channel.id}> teraz jest ignorowany`).setColor('#2ecc71');
-                } else {
-                    embed.setTitle('⚠️ Kanał już ignorowany').setColor('#f1c40f');
-                }
+            if (!automod.ignoredChannels.includes(channelId)) {
+                automod.ignoredChannels.push(channelId);
+                saveAutomod(automod);
+                embed.setTitle('✅ Dodano kanał do ignorowanych').setDescription(`<#${channelId}> teraz jest ignorowany`).setColor('#2ecc71');
             } else {
-                const cIdx = automod.ignoredChannels.indexOf(channel.id);
-                if (cIdx > -1) {
-                    automod.ignoredChannels.splice(cIdx, 1);
-                    saveAutomod(automod);
-                    embed.setTitle('✅ Usunięto kanał z ignorowanych').setDescription(`<#${channel.id}> nie jest już ignorowany`).setColor('#2ecc71');
-                } else {
-                    embed.setTitle('⚠️ Kanał nie był ignorowany').setColor('#f1c40f');
-                }
+                embed.setTitle('⚠️ Kanał już ignorowany').setColor('#f1c40f');
             }
-            await interaction.reply({ embeds: [embed], ephemeral: true });
+            await message.reply({ embeds: [embed] });
             break;
             
         case 'ignorerole':
-            const role = interaction.options.getRole('rola');
-            const addRole = interaction.options.getBoolean('dodaj');
+            if (args.length < 2) {
+                return message.reply('Podaj rolę! Użycie: !automod ignorerole <@rola>');
+            }
+            const roleId = args[1].replace(/<@&|>/g, '');
             if (!automod.ignoredRoles) automod.ignoredRoles = [];
             
-            if (addRole) {
-                if (!automod.ignoredRoles.includes(role.id)) {
-                    automod.ignoredRoles.push(role.id);
-                    saveAutomod(automod);
-                    embed.setTitle('✅ Dodano rolę do ignorowanych').setDescription(`${role} teraz jest ignorowana`).setColor('#2ecc71');
-                } else {
-                    embed.setTitle('⚠️ Rola już ignorowana').setColor('#f1c40f');
-                }
+            if (!automod.ignoredRoles.includes(roleId)) {
+                automod.ignoredRoles.push(roleId);
+                saveAutomod(automod);
+                embed.setTitle('✅ Dodano rolę do ignorowanych').setDescription(`<@&${roleId}> teraz jest ignorowana`).setColor('#2ecc71');
             } else {
-                const rIdx = automod.ignoredRoles.indexOf(role.id);
-                if (rIdx > -1) {
-                    automod.ignoredRoles.splice(rIdx, 1);
-                    saveAutomod(automod);
-                    embed.setTitle('✅ Usunięto rolę z ignorowanych').setDescription(`${role} nie jest już ignorowana`).setColor('#2ecc71');
-                } else {
-                    embed.setTitle('⚠️ Rola nie była ignorowana').setColor('#f1c40f');
-                }
+                embed.setTitle('⚠️ Rola już ignorowana').setColor('#f1c40f');
             }
-            await interaction.reply({ embeds: [embed], ephemeral: true });
+            await message.reply({ embeds: [embed] });
             break;
+            
+        default:
+            await message.reply('Nieznana akcja! Dostępne: status, wlacz, wylacz, antiinvite, addbadword, removebadword, badwords, ignorechannel, ignorerole');
     }
 }

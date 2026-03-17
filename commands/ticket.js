@@ -1,26 +1,18 @@
-import { 
-  SlashCommandBuilder, 
-  ActionRowBuilder, 
-  ButtonBuilder, 
-  ButtonStyle, 
-  PermissionsBitField 
-} from 'discord.js';
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 
-export const data = new SlashCommandBuilder()
-  .setName('ticket')
-  .setDescription('Panel ticketów');
+export const name = 'ticket';
+export const description = 'Panel ticketów';
 
-export async function execute(interaction) {
+export async function execute(message, args) {
+    const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId('create_ticket')
+            .setLabel('🎫 Utwórz Ticket')
+            .setStyle(ButtonStyle.Primary)
+    );
 
-  const row = new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId('create_ticket')
-      .setLabel('🎫 Utwórz Ticket')
-      .setStyle(ButtonStyle.Primary)
-  );
-
-  await interaction.reply({
-    content: "Kliknij przycisk aby utworzyć ticket:",
-    components: [row]
-  });
+    await message.reply({
+        content: "Kliknij przycisk aby utworzyć ticket:",
+        components: [row]
+    });
 }

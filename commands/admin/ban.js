@@ -1,19 +1,38 @@
-import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
-export const data = new SlashCommandBuilder()
-  .setName('ban')
-  .setDescription('Banuje użytkownika')
-  .addUserOption(option => option.setName('target').setDescription('Użytkownik do zbanowania').setRequired(true))
-  .setDefaultMemberPermissions(PermissionFlagsBits.BanMembers);
+export const name = 'ban';
+export const description = 'Banuje użytkownika';
 
-export async function execute(interaction) {
-  const target = interaction.options.getUser('target');
-  const member = await interaction.guild.members.fetch(target.id).catch(() => null);
-  if (!member) return await interaction.reply({ content: 'Nie znaleziono użytkownika.', ephemeral: true });
-
-  try {
-    await member.ban({ reason: `Zbanowany przez ${interaction.user.tag}` });
-    await interaction.reply(`🔨 ${target.tag} został zbanowany.`);
-  } catch (err) {
-    await interaction.reply({ content: `❌ Błąd: ${err.message}`, ephemeral: true });
-  }
+export async function execute(message, args) {
+    if (!message.member?.permissions.has('BanMembers')) {
+        return message.reply('Nie masz uprawnień do banowania!');
+    }
+    
+    if (args.length === 0) {
+        return message.reply('Podaj użytkownika! Użycie: !ban <@użytkownik> [powód]');
+    }
+    
+    if (!message.guild) {
+        return message.reply('Ta komenda działa tylko na serwerze!');
+    }
+    
+    const userId = args[0].replace(/<@!?/g, '').replace(/>/g, '');
+    let target;
+    try {
+        target = await message.client.users.fetch(userId);
+    } catch (e) {
+        return message.reply('Nie znaleziono użytkownika!');
+    }
+    
+    const member = await message.guild.members.fetch(userId).catch(() => null);
+    if (!member) {
+        return message.reply('Nie znaleziono użytkownika na serwerze.');
+    }
+    
+    const reason = args.slice(1).join(' ') || `Zbanowany przez ${message.author.tag}`;
+    
+    try {
+        await member.ban({ reason: reason });
+        await message.reply(`🔨 ${target.tag} został zbanowany. Powód: ${reason}`);
+    } catch (err) {
+        await message.reply(`❌ Błąd: ${err.message}`);
+    }
 }

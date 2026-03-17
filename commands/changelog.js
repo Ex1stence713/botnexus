@@ -1,107 +1,75 @@
-import { 
-  SlashCommandBuilder, 
-  EmbedBuilder, 
-  PermissionFlagsBits 
-} from 'discord.js';
+import { EmbedBuilder } from 'discord.js';
 
-export const data = new SlashCommandBuilder()
-  .setName('changelog')
-  .setDescription('Publikuje estetyczne nowości na serwerze')
-  .addStringOption(option =>
-    option.setName('tytul')
-      .setDescription('Tytuł aktualizacji (np. Wersja 2.0)')
-      .setRequired(true)
-  )
-  .addStringOption(option =>
-    option.setName('tresc')
-      .setDescription('Użyj ";" aby rozdzielić punkty nowości')
-      .setRequired(true)
-  )
-  .addChannelOption(option =>
-    option.setName('kanal')
-      .setDescription('Gdzie wysłać wiadomość?')
-      .setRequired(true)
-  )
-  .addRoleOption(option =>
-    option.setName('ping')
-      .setDescription('Rola do oznaczenia')
-  )
-  .addStringOption(option =>
-    option.setName('obraz')
-      .setDescription('Link do dużego obrazka pod treścią')
-  )
-  .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages);
+export const name = 'changelog';
+export const description = 'Publikuje estetyczne nowości na serwerze';
 
-export async function execute(interaction) {
-  const title = interaction.options.getString('tytul');
-  const contentRaw = interaction.options.getString('tresc');
-  const channel = interaction.options.getChannel('kanal');
-  const pingRole = interaction.options.getRole('ping');
-  const image = interaction.options.getString('obraz');
-
-  if (!channel.isTextBased()) {
-    return interaction.reply({
-      content: '❌ Wybrany kanał musi być tekstowy.',
-      ephemeral: true
-    });
-  }
-
-  // Automatyczne formatowanie punktów (jeśli użytkownik użyje średnika ;)
-  const formattedContent = contentRaw
-    .split(';')
-    .map(line => `• ${line.trim()}`)
-    .join('\n');
-
-  const embed = new EmbedBuilder()
-    .setAuthor({
-      name: `Aktualizacja: ${interaction.guild.name}`,
-      iconURL: interaction.guild.iconURL({ dynamic: true })
-    })
-    .setTitle(`✨ ${title}`)
-    .setDescription(`\n${formattedContent}\n\n`)
-    .setColor('#5865F2') // Blurple - klasyczny kolor Discorda
-    .addFields(
-      {
-        name: '🛠️ Deweloper',
-        value: `${interaction.user}`,
-        inline: true
-      },
-      {
-        name: '📅 Data',
-        value: `<t:${Math.floor(Date.now() / 1000)}:d>`, // Krótka data
-        inline: true
-      }
-    )
-    .setFooter({
-      text: `Wersja produkcyjna • ${interaction.guild.name}`,
-    })
-    .setTimestamp();
-
-  if (image) {
-    // Sprawdzanie czy link jest poprawnym URL (opcjonalnie)
-    if (image.startsWith('http')) {
-        embed.setImage(image);
+export async function execute(message, args) {
+    if (!message.member?.permissions.has('ManageMessages')) {
+        return message.reply('Nie masz uprawnień do używania tej komendy!');
     }
-  }
+    
+    if (args.length < 3) {
+        return message.reply('Podaj tytuł, treść i kanał! Użycie: !changelog <tytul> <tresc> <#kanal>');
+    }
+    
+    // Znajdź kanał (ostatni argument to kanał)
+    const channelMention = args[args.length - 1];
+    const channelId = channelMention.replace(/<#|>/g, '');
+    const channel = message.guild?.channels.cache.get(channelId);
+    
+    if (!channel) {
+        return message.reply('Nie znaleziono kanału!');
+    }
+    
+    // Reszta to tytuł i treść
+    const argsWithoutChannel = args.slice(0, -1);
+    const title = argsWithoutChannel[0];
+    const contentRaw = argsWithoutChannel.slice(1).join(' ');
+    
+    if (!channel.isTextBased()) {
+        return message.reply('Wybrany kanał musi być tekstowy!');
+    }
+    
+    // Automatyczne formatowanie punktów (jeśli użytkownik użyje średnika ;)
+    const formattedContent = contentRaw
+        .split(';')
+        .map(line => `• ${line.trim()}`)
+        .join('\n');
+    
+    const embed = new EmbedBuilder()
+        .setAuthor({
+            name: `Aktualizacja: ${message.guild?.name}`,
+            iconURL: message.guild?.iconURL({ dynamic: true })
+        })
+        .setTitle(`✨ ${title}`)
+        .setDescription(`\n${formattedContent}\n\n`)
+        .setColor('#5865F2')
+        .addFields(
+            {
+                name: '🛠️ Deweloper',
+                value: `${message.author}`,
+                inline: true
+            },
+            {
+                name: '📅 Data',
+                value: `<t:${Math.floor(Date.now() / 1000)}:d>`,
+                inline: true
+            }
+        )
+        .setFooter({
+            text: `Wersja produkcyjna • ${message.guild?.name}`,
+        })
+        .setTimestamp();
 
-  try {
-    const mention = pingRole ? `${pingRole}` : '';
+    try {
+        await channel.send({
+            embeds: [embed]
+        });
 
-    await channel.send({
-      content: mention,
-      embeds: [embed]
-    });
+        await message.reply(`✅ Pomyślnie opublikowano nowości na kanale ${channel}`);
 
-    await interaction.reply({
-      content: `✅ Pomyślnie opublikowano nowości na kanale ${channel}`,
-      ephemeral: true
-    });
-
-  } catch (err) {
-    console.error(err);
-    return interaction.reply({
-      content: '❌ Nie udało się wysłać changelogu. Sprawdź moje uprawnienia na tamtym kanale.',
-      ephemeral: true
-    });
-  }
+    } catch (err) {
+        console.error(err);
+        return message.reply('❌ Nie udało się wysłać changelogu. Sprawdź moje uprawnienia na tamtym kanale.');
+    }
 }

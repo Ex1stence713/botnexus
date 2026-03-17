@@ -1,17 +1,25 @@
-import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
+export const name = 'clear';
+export const description = 'Czyści wiadomości';
 
-export const data = new SlashCommandBuilder()
-  .setName('clear')
-  .setDescription('Czyści wiadomości')
-  .addIntegerOption(option =>
-    option.setName('ilość')
-      .setDescription('Liczba wiadomości do usunięcia')
-      .setRequired(true))
-  .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages);
-
-export async function execute(interaction) {
-  const amount = interaction.options.getInteger('ilość');
-  const channel = interaction.channel;
-  await channel.bulkDelete(amount, true);
-  await interaction.reply({ content: `🧹 Usunięto ${amount} wiadomości.`, ephemeral: true });
+export async function execute(message, args) {
+    if (!message.member?.permissions.has('ManageMessages')) {
+        return message.reply('Nie masz uprawnień do zarządzania wiadomościami!');
+    }
+    
+    if (args.length === 0) {
+        return message.reply('Podaj ilość wiadomości! Użycie: !clear <ilość>');
+    }
+    
+    const amount = parseInt(args[0]);
+    
+    if (isNaN(amount) || amount < 1 || amount > 100) {
+        return message.reply('Podaj liczbę od 1 do 100!');
+    }
+    
+    try {
+        await message.channel.bulkDelete(amount, true);
+        await message.reply(`🧹 Usunięto ${amount} wiadomości.`);
+    } catch (err) {
+        await message.reply(`❌ Błąd: ${err.message}`);
+    }
 }

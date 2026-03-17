@@ -1,12 +1,11 @@
-import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
+import { EmbedBuilder } from 'discord.js';
 import economy from '../utils/economy.js';
 
-export const data = new SlashCommandBuilder()
-    .setName('daily')
-    .setDescription('Odbierz codzienną nagrodę');
+export const name = 'daily';
+export const description = 'Odbierz codzienną nagrodę';
 
-export async function execute(interaction) {
-    const userId = interaction.user.id;
+export async function execute(message, args) {
+    const userId = message.author.id;
     
     if (!economy.canClaimDaily(userId)) {
         const user = economy.getUser(userId);
@@ -19,7 +18,7 @@ export async function execute(interaction) {
             .setDescription(`Możesz odebrać kolejną nagrodę za **${hoursLeft} godzin**`)
             .setColor(0xED4245);
         
-        return interaction.reply({ embeds: [errorEmbed] });
+        return message.reply({ embeds: [errorEmbed] });
     }
     
     const user = economy.updateDailyStreak(userId);
@@ -36,7 +35,7 @@ export async function execute(interaction) {
         .setTitle('🎁 Codzienna nagroda!')
         .setDescription(`Odebrałeś swoją nagrodę dzienną`)
         .setColor(0x57F287)
-        .setThumbnail(interaction.user.displayAvatarURL({ dynamic: true }))
+        .setThumbnail(message.author.displayAvatarURL({ dynamic: true }))
         .addFields(
             { name: '💵 Nagroda', value: `**${totalReward.toLocaleString()}** monet`, inline: true },
             { name: '🔥 Seria', value: `**${user.dailyStreak}** dni`, inline: true },
@@ -46,5 +45,5 @@ export async function execute(interaction) {
         .setFooter({ text: 'Wróć jutro po kolejną nagrodę!' })
         .setTimestamp();
     
-    await interaction.reply({ embeds: [dailyEmbed] });
+    await message.reply({ embeds: [dailyEmbed] });
 }

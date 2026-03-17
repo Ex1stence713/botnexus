@@ -1,48 +1,44 @@
-import { SlashCommandBuilder, PermissionFlagsBits } from 'discord.js';
+export const name = 'control';
+export const description = 'Zarządzanie botem (restart, wyłączenie)';
 
-export const data = new SlashCommandBuilder()
-  .setName('control')
-  .setDescription('Zarządzanie botem (restart, wyłączenie)')
-  .addStringOption(option =>
-    option.setName('akcja')
-      .setDescription('Wybierz akcję')
-      .setRequired(true)
-      .addChoices(
-        { name: 'Restart', value: 'restart' },
-        { name: 'Wyłącz', value: 'stop' },
-        { name: 'Włącz', value: 'start' }
-      )
-  )
-  .setDefaultMemberPermissions(PermissionFlagsBits.Administrator);
-
-export async function execute(interaction) {
-  const action = interaction.options.getString('akcja');
-
-  if (action === 'restart') {
-    await interaction.reply({ content: '♻️ Restartuję bota...', ephemeral: true });
+export async function execute(message, args) {
+    if (!message.member?.permissions.has('Administrator')) {
+        return message.reply('Nie masz uprawnień administratora!');
+    }
     
-    setTimeout(async () => {
-      try {
-        await interaction.client.destroy();
-      } catch (err) {
-        console.error('Błąd przy zamykaniu klienta:', err);
-      }
-      process.exit(0);
-    }, 1000);
-
-  } else if (action === 'stop') {
-    await interaction.reply({ content: '🛑 Wyłączam bota...', ephemeral: true });
+    if (args.length === 0) {
+        return message.reply('Podaj akcję! Użycie: !control <restart|stop|start>');
+    }
     
-    setTimeout(async () => {
-      try {
-        await interaction.client.destroy();
-      } catch (err) {
-        console.error('Błąd przy zamykaniu klienta:', err);
-      }
-      process.exit(0);
-    }, 1000);
+    const action = args[0].toLowerCase();
 
-  } else if (action === 'start') {
-    await interaction.reply({ content: '⚠️ Bot musi być uruchomiony zewnętrznie! Użyj swojego menedżera procesów (np. PM2, nodemon).', ephemeral: true });
-  }
+    if (action === 'restart') {
+        await message.reply('♻️ Restartuję bota...');
+        
+        setTimeout(async () => {
+            try {
+                await message.client.destroy();
+            } catch (err) {
+                console.error('Błąd przy zamykaniu klienta:', err);
+            }
+            process.exit(0);
+        }, 1000);
+
+    } else if (action === 'stop') {
+        await message.reply('🛑 Wyłączam bota...');
+        
+        setTimeout(async () => {
+            try {
+                await message.client.destroy();
+            } catch (err) {
+                console.error('Błąd przy zamykaniu klienta:', err);
+            }
+            process.exit(0);
+        }, 1000);
+
+    } else if (action === 'start') {
+        await message.reply('⚠️ Bot musi być uruchomiony zewnętrznie! Użyj swojego menedżera procesów (np. PM2, nodemon).');
+    } else {
+        await message.reply('Nieznana akcja! Użycie: !control <restart|stop|start>');
+    }
 }

@@ -1,27 +1,27 @@
-import { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
+import { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 
-export const data = new SlashCommandBuilder()
-  .setName('poll')
-  .setDescription('Tworzy profesjonalną ankietę z przyciskami')
-  .addStringOption(option => option.setName('pytanie').setDescription('Treść pytania').setRequired(true))
-  .addStringOption(option => option.setName('opcja1').setDescription('Pierwsza opcja').setRequired(true))
-  .addStringOption(option => option.setName('opcja2').setDescription('Druga opcja').setRequired(true));
+export const name = 'ankieta';
+export const description = 'Tworzy profesjonalną ankietę z przyciskami';
 
-export async function execute(interaction) {
-  const question = interaction.options.getString('pytanie');
-  const opt1 = interaction.options.getString('opcja1');
-  const opt2 = interaction.options.getString('opcja2');
+export async function execute(message, args) {
+    if (args.length < 3) {
+        return message.reply('Podaj pytanie i dwie opcje! Użycie: !ankieta <pytanie> <opcja1> <opcja2>');
+    }
+    
+    const question = args[0];
+    const opt1 = args[1];
+    const opt2 = args.slice(2).join(' ');
 
-  const embed = new EmbedBuilder()
-    .setTitle('📊 Głosowanie')
-    .setDescription(`**${question}**\n\n🟦: ${opt1}\n🟥: ${opt2}`)
-    .setColor('#5865F2')
-    .setFooter({ text: `Ankieta rozpoczęta przez: ${interaction.user.tag}` });
+    const embed = new EmbedBuilder()
+        .setTitle('📊 Głosowanie')
+        .setDescription(`**${question}**\n\n🟦: ${opt1}\n🟥: ${opt2}`)
+        .setColor('#5865F2')
+        .setFooter({ text: `Ankieta rozpoczęta przez: ${message.author.tag}` });
 
-  const row = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId('poll_1').setLabel(opt1).setStyle(ButtonStyle.Primary).setEmoji('🟦'),
-    new ButtonBuilder().setCustomId('poll_2').setLabel(opt2).setStyle(ButtonStyle.Danger).setEmoji('🟥')
-  );
+    const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('poll_1').setLabel(opt1).setStyle(ButtonStyle.Primary).setEmoji('🟦'),
+        new ButtonBuilder().setCustomId('poll_2').setLabel(opt2).setStyle(ButtonStyle.Danger).setEmoji('🟥')
+    );
 
-  await interaction.reply({ embeds: [embed], components: [row] });
+    await message.reply({ embeds: [embed], components: [row] });
 }

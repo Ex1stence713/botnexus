@@ -1,11 +1,10 @@
-import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
+import { EmbedBuilder } from 'discord.js';
 import economy from '../utils/economy.js';
 
-export const data = new SlashCommandBuilder()
-    .setName('leaderboard')
-    .setDescription('Top 10 najbogatszych użytkowników');
+export const name = 'leaderboard';
+export const description = 'Top 10 najbogatszych użytkowników';
 
-export async function execute(interaction) {
+export async function execute(message, args) {
     const leaderboard = economy.getLeaderboard();
     
     if (leaderboard.length === 0) {
@@ -13,19 +12,19 @@ export async function execute(interaction) {
             .setTitle('📊 Ranking')
             .setDescription('Brak użytkowników w rankingu!')
             .setColor(0x5865F2);
-        return interaction.reply({ embeds: [emptyEmbed] });
+        return message.reply({ embeds: [emptyEmbed] });
     }
     
     const leaderboardEmbed = new EmbedBuilder()
         .setTitle('🏆 Top 10 Najbogatszych')
         .setColor(0xFFD700)
-        .setThumbnail(interaction.guild.iconURL({ dynamic: true }));
+        .setThumbnail(message.guild?.iconURL({ dynamic: true }));
     
     const medal = ['🥇', '🥈', '🥉', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟'];
     
     for (let i = 0; i < leaderboard.length; i++) {
         const entry = leaderboard[i];
-        const user = await interaction.client.users.fetch(entry.userId).catch(() => null);
+        const user = await message.client.users.fetch(entry.userId).catch(() => null);
         const username = user ? user.username : 'Nieznany';
         const level = Math.floor(Math.sqrt(entry.totalEarned / 100)) + 1;
         
@@ -39,5 +38,5 @@ export async function execute(interaction) {
     leaderboardEmbed.setFooter({ text: `Łącznie użytkowników: ${leaderboard.length}` });
     leaderboardEmbed.setTimestamp();
     
-    await interaction.reply({ embeds: [leaderboardEmbed] });
+    await message.reply({ embeds: [leaderboardEmbed] });
 }

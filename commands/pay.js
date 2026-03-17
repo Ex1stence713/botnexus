@@ -1,16 +1,30 @@
-import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
+import { EmbedBuilder } from 'discord.js';
 import economy from '../utils/economy.js';
 
-export const data = new SlashCommandBuilder()
-    .setName('pay')
-    .setDescription('Przelij monety innemu użytkownikowi')
-    .addUserOption(opt => opt.setName('user').setDescription('Użytkownik').setRequired(true))
-    .addIntegerOption(opt => opt.setName('amount').setDescription('Ilość monet').setRequired(true));
+export const name = 'pay';
+export const description = 'Przelij monety innemu użytkownikowi';
 
-export async function execute(interaction) {
-    const senderId = interaction.user.id;
-    const recipient = interaction.options.getUser('user');
-    const amount = interaction.options.getInteger('amount');
+export async function execute(message, args) {
+    if (args.length < 2) {
+        return message.reply('Podaj użytkownika i ilość! Użycie: !pay <użytkownik> <ilość>');
+    }
+    
+    const senderId = message.author.id;
+    
+    // Pobierz użytkownika z args
+    const userId = args[0].replace(/<@!/g, '').replace(/<@/g, '').replace(/>/g, '');
+    let recipient;
+    try {
+        recipient = await message.client.users.fetch(userId);
+    } catch (e) {
+        return message.reply('Nie znaleziono użytkownika!');
+    }
+    
+    const amount = parseInt(args[1]);
+    
+    if (isNaN(amount)) {
+        return message.reply('Podaj poprawną liczbę!');
+    }
     
     // Walidacja
     if (amount <= 0) {
@@ -18,7 +32,7 @@ export async function execute(interaction) {
             .setTitle('❌ Błąd!')
             .setDescription('Ilość monet musi być większa od 0')
             .setColor(0xED4245);
-        return interaction.reply({ embeds: [errorEmbed] });
+        return message.reply({ embeds: [errorEmbed] });
     }
     
     if (senderId === recipient.id) {
@@ -26,7 +40,7 @@ export async function execute(interaction) {
             .setTitle('❌ Błąd!')
             .setDescription('Nie możesz przesłać pieniędzy samemu sobie!')
             .setColor(0xED4245);
-        return interaction.reply({ embeds: [errorEmbed] });
+        return message.reply({ embeds: [errorEmbed] });
     }
     
     const sender = economy.getUser(senderId);
@@ -36,7 +50,7 @@ export async function execute(interaction) {
             .setTitle('❌ Brak środków!')
             .setDescription(`Masz tylko **${sender.coins}** monet, a próbujesz przesłać **${amount}**`)
             .setColor(0xED4245);
-        return interaction.reply({ embeds: [errorEmbed] });
+        return message.reply({ embeds: [errorEmbed] });
     }
     
     // Wykonaj przelew
@@ -52,12 +66,12 @@ export async function execute(interaction) {
         .setColor(0x57F287)
         .setThumbnail(recipient.displayAvatarURL({ dynamic: true }))
         .addFields(
-            { name: '📤 Od', value: interaction.user.tag, inline: true },
+            { name: '📤 Od', value: message.author.tag, inline: true },
             { name: '📥 Do', value: recipient.tag, inline: true },
             { name: '💰 Kwota', value: `**${amount.toLocaleString()}** monet`, inline: false },
             { name: '💵 Twoje monety', value: `**${senderNew.coins.toLocaleString()}**`, inline: true }
         )
         .setTimestamp();
     
-    await interaction.reply({ embeds: [payEmbed] });
+    await message.reply({ embeds: [payEmbed] });
 }

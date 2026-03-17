@@ -1,32 +1,43 @@
-import { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder } from 'discord.js';
+import { PermissionFlagsBits } from 'discord.js';
+
+export const name = 'unmute';
+export const description = 'Odcisza użytkownika';
 
 const MUTE_ROLE_ID = '1463630780692697201';
 
-export const data = new SlashCommandBuilder()
-  .setName('unmute')
-  .setDescription('Odcisza użytkownika')
-  .addUserOption(option => option.setName('target').setDescription('Użytkownik do odciszenia').setRequired(true));
+export async function execute(message, args) {
+    const { guild, member } = message;
 
-export async function execute(interaction) {
-  const { guild, options, member } = interaction;
+    if (!guild) return message.reply('Ta komenda działa tylko na serwerze.');
 
-  if (!guild) return interaction.reply({ content: 'Ta komenda działa tylko na serwerze.', flags: 64 });
+    if (!member?.permissions.has(PermissionFlagsBits.ManageRoles)) {
+        return message.reply('Nie masz uprawnień do odciszania użytkowników.');
+    }
 
-  const target = options.getMember('target');
-  if (!target) return interaction.reply({ content: 'Nie znaleziono użytkownika na serwerze.', flags: 64 });
+    if (args.length === 0) {
+        return message.reply('Podaj użytkownika! Użycie: !unmute <@użytkownik>');
+    }
+    
+    const userId = args[0].replace(/<@!?/g, '').replace(/>/g, '');
+    const target = await guild.members.fetch(userId).catch(() => null);
+    
+    if (!target) {
+        return message.reply('Nie znaleziono użytkownika na serwerze.');
+    }
 
-  if (!member.permissions.has(PermissionFlagsBits.ManageRoles))
-    return interaction.reply({ content: 'Nie masz uprawnień do odciszania użytkowników.', flags: 64 });
+    if (!guild.members.me.permissions.has(PermissionFlagsBits.ManageRoles)) {
+        return message.reply('Bot nie ma uprawnień do zarządzania rolami.');
+    }
 
-  if (!guild.members.me.permissions.has(PermissionFlagsBits.ManageRoles))
-    return interaction.reply({ content: 'Bot nie ma uprawnień do zarządzania rolami.', flags: 64 });
+    const muteRole = guild.roles.cache.get(MUTE_ROLE_ID);
+    if (!muteRole) {
+        return message.reply('Rola Muted nie istnieje.');
+    }
 
-  const muteRole = guild.roles.cache.get(MUTE_ROLE_ID);
-  if (!muteRole) return interaction.reply({ content: 'Rola Muted nie istnieje.', flags: 64 });
+    if (!target.roles.cache.has(muteRole.id)) {
+        return message.reply('Ten użytkownik nie jest wyciszony.');
+    }
 
-  if (!target.roles.cache.has(muteRole.id))
-    return interaction.reply({ content: 'Ten użytkownik nie jest wyciszony.', flags: 64 });
-
-  await target.roles.remove(muteRole);
-  await interaction.reply({ content: `Odciszono **${target.user.tag}**.` });
+    await target.roles.remove(muteRole);
+    await message.reply(`Odciszono **${target.user.tag}**.`);
 }

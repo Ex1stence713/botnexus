@@ -1,24 +1,28 @@
-import { SlashCommandBuilder } from 'discord.js';
+export const name = 'dajrange';
+export const description = 'Nadaje rangę o podanym ID wszystkim członkom serwera.';
 
-export const data = new SlashCommandBuilder()
-    .setName('dajrange')
-    .setDescription('Nadaje rangę o podanym ID wszystkim członkom serwera.')
-    .addStringOption(option =>
-        option.setName('roleid')
-            .setDescription('ID rangi do nadania')
-            .setRequired(true)
-    );
-
-export async function execute(interaction) {
-    const roleId = interaction.options.getString('roleid');
-    const guild = interaction.guild;
+export async function execute(message, args) {
+    if (!message.member?.permissions.has('Administrator')) {
+        return message.reply('Nie masz uprawnień administratora!');
+    }
+    
+    if (args.length === 0) {
+        return message.reply('Podaj ID roli! Użycie: !dajrange <role_id>');
+    }
+    
+    if (!message.guild) {
+        return message.reply('Ta komenda działa tylko na serwerze!');
+    }
+    
+    const roleId = args[0];
+    const guild = message.guild;
     const role = guild.roles.cache.get(roleId);
 
     if (!role) {
-        return interaction.reply({ content: 'Nie znaleziono rangi o podanym ID.', ephemeral: true });
+        return message.reply('Nie znaleziono rangi o podanym ID.');
     }
 
-    await interaction.reply('Nadaję rangę wszystkim członkom...');
+    await message.reply('Nadaję rangę wszystkim członkom...');
 
     const members = await guild.members.fetch();
     let success = 0, fail = 0;
@@ -34,5 +38,5 @@ export async function execute(interaction) {
         }
     }
 
-    await interaction.followUp(`Ranga została nadana ${success} członkom. Niepowodzenia: ${fail}.`);
+    await message.reply(`Ranga została nadana ${success} członkom. Niepowodzenia: ${fail}.`);
 }

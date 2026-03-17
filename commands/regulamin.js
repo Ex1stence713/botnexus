@@ -1,4 +1,7 @@
-import { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } from 'discord.js';
+import { EmbedBuilder } from 'discord.js';
+
+export const name = 'regulamin';
+export const description = 'Publikuje regulamin';
 
 // static rules text
 const rulesText = `1. Nieznajomość regulaminu nie zwalnia cię z jego przestrzegania. Korzystając z serwera Discord, akceptujesz warunki regulaminu.
@@ -12,67 +15,54 @@ const rulesText = `1. Nieznajomość regulaminu nie zwalnia cię z jego przestrz
 8. Ogranicz przeklinanie do minimum. **Tyczy się wszystkich nawet administracji.**
 9. Każdy użytkownik ma obowiązek przypisania sobie rangi zgodnej z rzeczywistym wiekiem oraz płcią. W przypadku wykrycia niezgodności lub celowego wprowadzenia w błąd, administratorzy zastrzegają sobie prawo do ukarania osoby banem permanentnym.
 10. Zakaz pingowania losowych osób oraz administracji bez konkretnego powodu.
-11. Zakaz przenoszenia problemów z chat’ów prywatnych i grup na publiczny
+11. Zakaz przenoszenia problemów z chat'ów prywatnych i grup na publiczny
 12. Administracja zastrzega sobie prawo do modyfikacji regulaminu w dowolnym momencie.
 13. Szanuj uczestników rozmów głosowych, unikaj hałasów i treści zakłócających.
 14. Wszelkie formy nadużyć i wykorzystywania błędów serwera w sposób sprzeczny z jego celem i zasadami będą obarczone konsekwencjami.`;
 
-export const data = new SlashCommandBuilder()
-    .setName('regulamin')
-    .setDescription('Publikuje regulamin')
-    .addChannelOption(option =>
-        option.setName('kanal')
-            .setDescription('Kanał, do którego zostanie wysłany regulamin')
-            .setRequired(true))
-    .addRoleOption(option =>
-        option.setName('ping')
-            .setDescription('Rola do pingowania (opcjonalne)')
-            .setRequired(false))
-    .addStringOption(option =>
-        option.setName('miniatura')
-            .setDescription('Link do miniaturki (opcjonalne)')
-            .setRequired(false))
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages);
+export async function execute(message, args) {
+    if (!message.member?.permissions.has('ManageMessages')) {
+        return message.reply('Nie masz uprawnień do używania tej komendy!');
+    }
+    
+    if (args.length === 0) {
+        return message.reply('Podaj kanał! Użycie: !regulamin <#kanal>');
+    }
+    
+    if (!message.guild) {
+        return message.reply('Ta komenda działa tylko na serwerze!');
+    }
+    
+    const channelMention = args[0];
+    const channelId = channelMention.replace(/<#|>/g, '');
+    const channel = message.guild.channels.cache.get(channelId);
 
-export async function execute(interaction) {
-    const channel = interaction.options.getChannel('kanal');
-    const pingRole = interaction.options.getRole('ping');
-    const thumbnail = interaction.options.getString('miniatura');
+    if (!channel) {
+        return message.reply('Nie znaleziono kanału!');
+    }
+
+    if (!channel.isTextBased?.()) {
+        return message.reply('Wybrany kanał nie pozwala na wysyłanie wiadomości!');
+    }
 
     const embed = new EmbedBuilder()
         .setAuthor({
             name: '📜 Regulamin',
-            iconURL: interaction.guild.iconURL()
+            iconURL: message.guild.iconURL()
         })
         .setDescription(rulesText)
         .setColor('#5865F2')
         .setFooter({
-            text: `${interaction.guild.name} • Regulamin`,
-            iconURL: interaction.guild.iconURL()
+            text: `${message.guild.name} • Regulamin`,
+            iconURL: message.guild.iconURL()
         })
         .setTimestamp();
 
-    if (thumbnail) {
-        embed.setThumbnail(thumbnail);
-    }
-
-    if (!channel) {
-        return interaction.reply({ content: '❌ Nie znaleziono kanału.', ephemeral: true });
-    }
-
-    if (!channel.isTextBased?.()) {
-        return interaction.reply({ content: '❌ Wybrany kanał nie pozwala na wysyłanie wiadomości.', ephemeral: true });
-    }
-
     try {
-        const messageContent = pingRole ? `${pingRole} 📜` : '';
-        await channel.send({ content: messageContent, embeds: [embed] });
-        return interaction.reply({
-            content: `✅ Wysłano regulamin na kanał <#${channel.id}>${pingRole ? ` z pingiem ${pingRole}` : ''}.`,
-            ephemeral: true
-        });
+        await channel.send({ embeds: [embed] });
+        return message.reply(`✅ Wysłano regulamin na kanał <#${channel.id}>`);
     } catch (err) {
         console.error('Błąd przy wysyłaniu regulaminu:', err);
-        return interaction.reply({ content: '❌ Nie udało się wysłać regulaminu na wybrany kanał.', ephemeral: true });
+        return message.reply('❌ Nie udało się wysłać regulaminu!');
     }
 }

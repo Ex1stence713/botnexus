@@ -1,52 +1,65 @@
-import { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder } from 'discord.js';
+import { EmbedBuilder, PermissionFlagsBits } from 'discord.js';
 
-// Tutaj podaj ID roli mute, która już istnieje na serwerze
+export const name = 'mute';
+export const description = 'Wycisza użytkownika';
+
 const MUTE_ROLE_ID = '1463630780692697201';
 
-export const data = new SlashCommandBuilder()
-  .setName('mute')
-  .setDescription('Wycisza użytkownika')
-  .addUserOption(option => option.setName('target').setDescription('Użytkownik do wyciszenia').setRequired(true))
-  .addIntegerOption(option => option.setName('time').setDescription('Czas wyciszenia w minutach').setRequired(false));
+export async function execute(message, args) {
+    const { guild, member } = message;
 
-export async function execute(interaction) {
-  const { guild, options, member } = interaction;
+    if (!guild) return message.reply('Ta komenda działa tylko na serwerze.');
 
-  if (!guild) return interaction.reply({ content: 'Ta komenda działa tylko na serwerze.', flags: 64 });
+    if (!member?.permissions.has(PermissionFlagsBits.MuteMembers) && !member?.permissions.has(PermissionFlagsBits.ManageRoles)) {
+        return message.reply('Nie masz uprawnień do wyciszania użytkowników.');
+    }
 
-  const target = options.getMember('target');
-  if (!target) return interaction.reply({ content: 'Nie znaleziono użytkownika na serwerze.', flags: 64 });
+    if (args.length === 0) {
+        return message.reply('Podaj użytkownika! Użycie: !mute <@użytkownik> [czas_w_minutach]');
+    }
+    
+    const userId = args[0].replace(/<@!?/g, '').replace(/>/g, '');
+    const target = await guild.members.fetch(userId).catch(() => null);
+    
+    if (!target) {
+        return message.reply('Nie znaleziono użytkownika na serwerze.');
+    }
 
-  if (target.id === member.id) return interaction.reply({ content: 'Nie możesz wykonać tej akcji na sobie.', flags: 64 });
+    if (target.id === member.id) {
+        return message.reply('Nie możesz wykonać tej akcji na sobie.');
+    }
 
-  const createEmbed = (desc, color = 'Blue') => new EmbedBuilder().setDescription(desc).setColor(color);
+    if (!guild.members.me.permissions.has(PermissionFlagsBits.ManageRoles)) {
+        return message.reply('Bot nie ma uprawnień do zarządzania rolami.');
+    }
 
-  if (!member.permissions.has(PermissionFlagsBits.MuteMembers) && !member.permissions.has(PermissionFlagsBits.ManageRoles))
-    return interaction.reply({ embeds: [createEmbed('Nie masz uprawnień do wyciszania użytkowników.', 'Red')], flags: 64 });
+    const muteRole = guild.roles.cache.get(MUTE_ROLE_ID);
+    if (!muteRole) {
+        return message.reply('Rola Muted o podanym ID nie istnieje na serwerze.');
+    }
 
-  if (!guild.members.me.permissions.has(PermissionFlagsBits.ManageRoles))
-    return interaction.reply({ embeds: [createEmbed('Bot nie ma uprawnień do zarządzania rolami.', 'Red')], flags: 64 });
+    if (target.roles.cache.has(muteRole.id)) {
+        return message.reply('Ten użytkownik jest już wyciszony.');
+    }
 
-  // Pobieramy rolę po ID (z cache)
-  const muteRole = guild.roles.cache.get(MUTE_ROLE_ID);
-  if (!muteRole) {
-    return interaction.reply({ embeds: [createEmbed('Rola Muted o podanym ID nie istnieje na serwerze.', 'Red')], flags: 64 });
-  }
+    await target.roles.add(muteRole);
 
-  if (target.roles.cache.has(muteRole.id))
-    return interaction.reply({ embeds: [createEmbed('Ten użytkownik jest już wyciszony.', 'Red')], flags: 64 });
-
-  await target.roles.add(muteRole);
-
-  const time = options.getInteger('time');
-  if (time && time > 0) {
-    setTimeout(async () => {
-      if (target.roles.cache.has(muteRole.id)) {
-        await target.roles.remove(muteRole).catch(() => {});
-      }
-    }, time * 60 * 1000);
-    await interaction.reply({ embeds: [createEmbed(`Wyciszono **${target.user.tag}** na ${time} minut.`, 'Green')] });
-  } else {
-    await interaction.reply({ embeds: [createEmbed(`Wyciszono **${target.user.tag}**.`, 'Green')] });
-  }
+    const time = parseInt(args[1]);
+    if (time && time > 0) {
+        setTimeout(async () => {
+            if (target.roles.cache.has(muteRole.id)) {
+                await target.roles.remove(muteRole).catch(() => {});
+            }
+        }, time * 60 * 1000);
+        
+        const embed = new EmbedBuilder()
+            .setDescription(`Wyciszono **${target.user.tag}** na ${time} minut.`)
+            .setColor(0x57F287);
+        await message.reply({ embeds: [embed] });
+    } else {
+        const embed = new EmbedBuilder()
+            .setDescription(`Wyciszono **${target.user.tag}**.`)
+            .setColor(0x57F287);
+        await message.reply({ embeds: [embed] });
+    }
 }

@@ -1,5 +1,8 @@
-import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
+import { EmbedBuilder } from 'discord.js';
 import economy from '../utils/economy.js';
+
+export const name = 'gamble';
+export const description = 'Zagraj w automat (slot machine)';
 
 const SYMBOLS = ['🍒', '🍋', '🍊', '🍇', '💎', '⭐'];
 const PAYOUTS = {
@@ -11,14 +14,18 @@ const PAYOUTS = {
     '⭐': 20
 };
 
-export const data = new SlashCommandBuilder()
-    .setName('gamble')
-    .setDescription('Zagraj w automat (slot machine)')
-    .addIntegerOption(opt => opt.setName('stawka').setDescription('Ilość monet do postawienia').setRequired(true));
-
-export async function execute(interaction) {
-    const userId = interaction.user.id;
-    const bet = interaction.options.getInteger('stawka');
+export async function execute(message, args) {
+    if (args.length === 0) {
+        return message.reply('Podaj stawkę! Użycie: !gamble <stawka>');
+    }
+    
+    const bet = parseInt(args[0]);
+    
+    if (isNaN(bet)) {
+        return message.reply('Podaj poprawną liczbę!');
+    }
+    
+    const userId = message.author.id;
     const user = economy.getUser(userId);
     
     // Walidacja
@@ -27,7 +34,7 @@ export async function execute(interaction) {
             .setTitle('❌ Błąd!')
             .setDescription('Stawka musi być większa od 0')
             .setColor(0xED4245);
-        return interaction.reply({ embeds: [errorEmbed] });
+        return message.reply({ embeds: [errorEmbed] });
     }
     
     if (user.coins < bet) {
@@ -35,7 +42,7 @@ export async function execute(interaction) {
             .setTitle('❌ Brak środków!')
             .setDescription(`Potrzebujesz **${bet}** monet, a masz **${user.coins}**`)
             .setColor(0xED4245);
-        return interaction.reply({ embeds: [errorEmbed] });
+        return message.reply({ embeds: [errorEmbed] });
     }
     
     if (bet > 10000) {
@@ -43,7 +50,7 @@ export async function execute(interaction) {
             .setTitle('❌ Zbyt duża stawka!')
             .setDescription('Maksymalna stawka to **10,000** monet')
             .setColor(0xED4245);
-        return interaction.reply({ embeds: [errorEmbed] });
+        return message.reply({ embeds: [errorEmbed] });
     }
     
     // Odejmij stawkę
@@ -89,7 +96,7 @@ export async function execute(interaction) {
         .setTitle(isWin ? '🎰 Wygrana!' : '🎰 Przegrałeś!')
         .setDescription(winMessage)
         .setColor(isWin ? 0x57F287 : 0xED4245)
-        .setThumbnail(interaction.user.displayAvatarURL({ dynamic: true }))
+        .setThumbnail(message.author.displayAvatarURL({ dynamic: true }))
         .addFields(
             { name: '🎰', value: `**${slot1} ${slot2} ${slot3}**`, inline: false },
             { name: '💰 Stawka', value: `**${bet.toLocaleString()}** monet`, inline: true },
@@ -98,5 +105,5 @@ export async function execute(interaction) {
         )
         .setTimestamp();
     
-    await interaction.reply({ embeds: [gambleEmbed] });
+    await message.reply({ embeds: [gambleEmbed] });
 }

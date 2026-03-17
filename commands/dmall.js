@@ -1,18 +1,27 @@
-import { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder } from 'discord.js';
+import { EmbedBuilder } from 'discord.js';
+
+export const name = 'dmall';
+export const description = 'Wysyła wiadomość do wszystkich użytkowników serwera';
 
 export default {
-    data: new SlashCommandBuilder()
-        .setName('dmall')
-        .setDescription('Wysyła wiadomość do wszystkich użytkowników serwera')
-        .addStringOption(option => 
-            option.setName('message')
-                .setDescription('Treść wiadomości')
-                .setRequired(true))
-        .setDefaultMemberPermissions(PermissionFlagsBits.Administrator), // Tylko dla adminów
-
-    async execute(interaction) {
-        const messageText = interaction.options.getString('message');
-        const members = await interaction.guild.members.fetch();
+    name: 'dmall',
+    description: 'Wysyła wiadomość do wszystkich użytkowników serwera',
+    
+    async execute(message, args) {
+        if (!message.member?.permissions.has('Administrator')) {
+            return message.reply('Tylko administratorzy mogą używać tej komendy!');
+        }
+        
+        if (args.length === 0) {
+            return message.reply('Podaj wiadomość! Użycie: !dmall <wiadomość>');
+        }
+        
+        if (!message.guild) {
+            return message.reply('Ta komenda działa tylko na serwerze!');
+        }
+        
+        const messageText = args.join(' ');
+        const members = await message.guild.members.fetch();
         
         // Embed dla potwierdzenia rozpoczęcia
         const startEmbed = new EmbedBuilder()
@@ -20,12 +29,12 @@ export default {
             .setDescription('Trwa wysyłanie wiadomości do wszystkich członków serwera.')
             .setColor(0x5865F2)
             .addFields(
-                { name: '👤 Od', value: interaction.user.tag, inline: true },
+                { name: '👤 Od', value: message.author.tag, inline: true },
                 { name: '📊 Łącznie członków', value: `${members.size}`, inline: true },
                 { name: '⏰ Czas', value: `<t:${Math.floor(Date.now() / 1000)}:f>`, inline: false }
             );
         
-        await interaction.reply({ embeds: [startEmbed], ephemeral: true });
+        await message.reply({ embeds: [startEmbed] });
 
         let successCount = 0;
         let failCount = 0;
@@ -34,17 +43,16 @@ export default {
         for (const [id, member] of members) {
             if (member.user.bot) continue;
             try {
-                // Embed dla wiadomości DM
                 const dmEmbed = new EmbedBuilder()
                     .setTitle('📨 Nowa Wiadomość')
                     .setDescription(messageText)
                     .setColor(0x5865F2)
                     .addFields(
-                        { name: '👤 Od', value: interaction.user.tag, inline: true },
-                        { name: '🏢 Serwer', value: interaction.guild.name, inline: true },
+                        { name: '👤 Od', value: message.author.tag, inline: true },
+                        { name: '🏢 Serwer', value: message.guild.name, inline: true },
                         { name: '⏰ Czas', value: `<t:${Math.floor(Date.now() / 1000)}:f>`, inline: false }
                     )
-                    .setThumbnail(interaction.user.displayAvatarURL({ dynamic: true }))
+                    .setThumbnail(message.author.displayAvatarURL({ dynamic: true }))
                     .setFooter({ text: 'Wiadomość wysłana przez bota serwera' })
                     .setTimestamp();
                 
@@ -75,6 +83,6 @@ export default {
         
         resultEmbed.setTimestamp();
 
-        await interaction.editReply({ embeds: [resultEmbed] });
+        await message.reply({ embeds: [resultEmbed] });
     },
 };

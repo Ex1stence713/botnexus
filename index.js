@@ -18,6 +18,7 @@ dotenv.config();
 // ===========================
 // KONFIGURACJA
 // ===========================
+const PREFIX = '!'; // Prefix komend
 const LOG_CHANNEL_ID = '1479629372158902373';
 const STATUS_CHANNEL_ID = '1479630853054267412';
 
@@ -192,18 +193,34 @@ async function loadCommands() {
                     const module = await import(filePath);
                     const command = module.default || module;
 
-                    if (command.data && command.execute) {
+                    // Obsługa komend prefix (!)
+                    if (command.name && command.execute) {
+                        const cmdName = command.name.toLowerCase();
                         // Pomijaj duplikaty komend
-                        if (seenCommands.has(command.data.name)) {
-                            console.warn(`⚠️ Pomijam duplikat komendy: ${command.data.name}`);
+                        if (seenCommands.has(cmdName)) {
+                            console.warn(`⚠️ Pomijam duplikat komendy: ${cmdName}`);
                             continue;
                         }
-                        seenCommands.add(command.data.name);
+                        seenCommands.add(cmdName);
                         
-                        client.commands.set(command.data.name, command);
-                        client.categoryMap.set(command.data.name, category);
+                        client.commands.set(cmdName, command);
+                        client.categoryMap.set(cmdName, category);
+                        loadedNames.push(`${PREFIX}${cmdName}`);
+                    }
+                    // Obsługa komend slash (dla kompatybilności wstecznej)
+                    else if (command.data && command.execute) {
+                        const cmdName = command.data.name.toLowerCase();
+                        // Pomijaj duplikaty komend
+                        if (seenCommands.has(cmdName)) {
+                            console.warn(`⚠️ Pomijam duplikat komendy: ${cmdName}`);
+                            continue;
+                        }
+                        seenCommands.add(cmdName);
+                        
+                        client.commands.set(cmdName, command);
+                        client.categoryMap.set(cmdName, category);
                         commandsJSON.push(command.data.toJSON());
-                        loadedNames.push(`/${command.data.name}`);
+                        loadedNames.push(`/${cmdName}`);
                     }
                 } catch (err) {
                     console.error(`❌ Błąd ładowania ${item.name}`, err);
@@ -503,7 +520,7 @@ client.once('ready', async () => {
     console.log(`🚀 Zalogowano jako ${client.user.tag}`);
 
     client.user.setPresence({
-        activities: [{ name: '/pomoc', type: ActivityType.Listening }],
+        activities: [{ name: `${PREFIX}pomoc`, type: ActivityType.Listening }],
         status: 'online'
     });
 
@@ -513,7 +530,44 @@ client.once('ready', async () => {
 });
 
 // ===========================
-// INTERAKCJE
+// INTERAKCJE - PREFIX COMMANDS
+// ===========================
+client.on('messageCreate', async (message) => {
+    // Ignoruj wiadomości od botów
+    if (message.author.bot) return;
+    
+    // Sprawdź czy wiadomość zaczyna się od prefixu
+    if (!message.content.startsWith(PREFIX)) return;
+    
+    // Usuń prefix i pobierz argumenty
+    const args = message.content.slice(PREFIX.length).trim().split(/\s+/);
+    const commandName = args.shift().toLowerCase();
+    
+    // Znajdź komendę
+    const command = client.commands.get(commandName);
+    if (!command) return;
+    
+    // Sprawdź czy komenda ma poprawną strukturę prefix
+    if (!command.execute) {
+        console.log(`❌ Komenda ${commandName} nie ma funkcji execute`);
+        return;
+    }
+    
+    try {
+        await command.execute(message, args);
+    } catch (err) {
+        console.error(`❌ Błąd wykonania komendy ${commandName}:`, err);
+        
+        try {
+            await message.reply('❌ Wystąpił błąd podczas wykonania tej komendy.');
+        } catch (e) {
+            console.error('❌ Nie można wysłać wiadomości błędu:', e);
+        }
+    }
+});
+
+// ===========================
+// INTERAKCJE - SLASH COMMANDS (opcjonalne, wyłączone)
 // ===========================
 client.on('interactionCreate', async interaction => {
 
@@ -548,8 +602,7 @@ client.on('interactionCreate', async interaction => {
 // ===========================
 (async () => {
 
-    const { commandsJSON } = await loadCommands();
-    await registerCommands(commandsJSON);
+    await loadCommands();
 
     // ===========================
     // ŁADOWANIE EVENTÓW

@@ -1,17 +1,17 @@
-import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
+import { EmbedBuilder } from 'discord.js';
 import economy from '../utils/economy.js';
 import { shopItems } from './shop.js';
 
-export const data = new SlashCommandBuilder()
-    .setName('buy')
-    .setDescription('Kup przedmiot ze sklepu')
-    .addStringOption(opt => opt.setName('id').setDescription('ID przedmiotu (sprawdź w /shop)').setRequired(true))
-    .addIntegerOption(opt => opt.setName('ilosc').setDescription('Ilość (dla przedmiotów)').setRequired(false));
+export const name = 'buy';
+export const description = 'Kup przedmiot ze sklepu';
 
-export async function execute(interaction) {
-    const userId = interaction.user.id;
-    const itemId = interaction.options.getString('id').toLowerCase();
-    const quantity = interaction.options.getInteger('ilosc') || 1;
+export async function execute(message, args) {
+    if (args.length === 0) {
+        return message.reply('Podaj ID przedmiotu! Użycie: !buy <id> [ilość]');
+    }
+    
+    const itemId = args[0].toLowerCase();
+    const quantity = parseInt(args[1]) || 1;
     
     // Znajdź przedmiot
     const item = shopItems.find(i => i.id.toLowerCase() === itemId);
@@ -19,11 +19,12 @@ export async function execute(interaction) {
     if (!item) {
         const errorEmbed = new EmbedBuilder()
             .setTitle('❌ Nie znaleziono przedmiotu!')
-            .setDescription(`Nie ma przedmiotu z ID \`${itemId}\`\nSprawdź listę w \`/shop\``)
+            .setDescription(`Nie ma przedmiotu z ID \`${itemId}\`\nSprawdź listę w \`!shop\``)
             .setColor(0xED4245);
-        return interaction.reply({ embeds: [errorEmbed] });
+        return message.reply({ embeds: [errorEmbed] });
     }
     
+    const userId = message.author.id;
     const totalPrice = item.price * quantity;
     const user = economy.getUser(userId);
     
@@ -32,7 +33,7 @@ export async function execute(interaction) {
             .setTitle('❌ Brak środków!')
             .setDescription(`Potrzebujesz **${totalPrice.toLocaleString()}** monet, a masz **${user.coins.toLocaleString()}**`)
             .setColor(0xED4245);
-        return interaction.reply({ embeds: [errorEmbed] });
+        return message.reply({ embeds: [errorEmbed] });
     }
     
     // Sprawdź czy użytkownik już nie ma tego przedmiotu (dla ról/kolorów)
@@ -41,7 +42,7 @@ export async function execute(interaction) {
             .setTitle('⚠️ Już posiadasz!')
             .setDescription(`Masz już **${item.name}**`)
             .setColor(0xFEE75C);
-        return interaction.reply({ embeds: [errorEmbed] });
+        return message.reply({ embeds: [errorEmbed] });
     }
     
     // Kup przedmiot
@@ -52,7 +53,7 @@ export async function execute(interaction) {
         .setTitle('✅ Zakup udany!')
         .setDescription(`Kupiłeś **${quantity}x ${item.name}**`)
         .setColor(0x57F287)
-        .setThumbnail(interaction.user.displayAvatarURL({ dynamic: true }))
+        .setThumbnail(message.author.displayAvatarURL({ dynamic: true }))
         .addFields(
             { name: '🛒 Przedmiot', value: item.name, inline: true },
             { name: '💰 Zapłacono', value: `**${totalPrice.toLocaleString()}** monet`, inline: true },
@@ -62,11 +63,11 @@ export async function execute(interaction) {
         .setTimestamp();
     
     // Jeśli item ma roleId, nadaj rolę (opcjonalnie)
-    if (item.roleId) {
+    if (item.roleId && message.guild) {
         try {
-            const role = interaction.guild.roles.cache.get(item.roleId);
-            if (role) {
-                await interaction.member.roles.add(role);
+            const role = message.guild.roles.cache.get(item.roleId);
+            if (role && message.member) {
+                await message.member.roles.add(role);
                 buyEmbed.addFields({ name: '🎉 Rola dodana!', value: `Otrzymałeś rolę ${role.name}`, inline: false });
             }
         } catch (err) {
@@ -74,5 +75,5 @@ export async function execute(interaction) {
         }
     }
     
-    await interaction.reply({ embeds: [buyEmbed] });
+    await message.reply({ embeds: [buyEmbed] });
 }

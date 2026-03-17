@@ -1,0 +1,239 @@
+{
+  "blocks": [
+    {
+      "id": "dirt",
+      "name": "Ziemia",
+      "icon": "🟤",
+      "rarity": 1,
+      "buyPrice": 1,
+      "sellPrice": 0.5,
+      "description": "Podstawowy blok, można znaleźć wszędzie"
+    },
+    {
+      "id": "grass",
+      "name": "Trawa",
+      "icon": "🟢",
+      "rarity": 1,
+      "buyPrice": 2,
+      "sellPrice": 1,
+      "description": "Zielony blok z wierzchu ziemi"
+    },
+    {
+      "id": "stone",
+      "name": "Kamień",
+      "icon": "⬜",
+      "rarity": 2,
+      "buyPrice": 5,
+      "sellPrice": 2,
+      "description": "Twardy blok pod ziemią"
+    },
+    {
+      "id": "coal",
+      "name": "Węgiel",
+      "icon": "⚫",
+      "rarity": 2,
+      "buyPrice": 10,
+      "sellPrice": 5,
+      "description": "Przydatny do tworzenia pochodni"
+    },
+    {
+      "id": "cobblestone",
+      "name": "Bruk",
+      "icon": "🪨",
+      "rarity": 2,
+      "buyPrice": 3,
+      "sellPrice": 1,
+      "description": "Surowy kamień z kruszcu"
+    },
+    {
+      "id": "wood",
+      "name": "Drewno",
+      "icon": "🪵",
+      "rarity": 2,
+      "buyPrice": 8,
+      "sellPrice": 4,
+      "description": "Podstawowy materiał budowlany"
+    },
+    {
+      "id": "iron_ore",
+      "name": "Ruda żelaza",
+      "icon": "🤎",
+      "rarity": 3,
+      "buyPrice": 25,
+      "sellPrice": 12,
+      "description": "Ruda z której wytapia się żelazo"
+    },
+    {
+      "id": "gold_ore",
+      "name": "Ruda złota",
+      "icon": "🟡",
+      "rarity": 4,
+      "buyPrice": 50,
+      "sellPrice": 25,
+      "description": "Rzadka ruda złota"
+    },
+    {
+      "id": "diamond_ore",
+      "name": "Ruda diamentu",
+      "icon": "💎",
+      "rarity": 5,
+      "buyPrice": 150,
+      "sellPrice": 75,
+      "description": "Bardzo rzadka i cenna ruda"
+    },
+    {
+      "id": "emerald_ore",
+      "name": "Ruda szmaragdu",
+      "icon": "🟢",
+      "rarity": 6,
+      "buyPrice": 300,
+      "sellPrice": 150,
+      "description": "Najrzadsza ruda w grze"
+    },
+    {
+      "id": "sand",
+      "name": "Piasek",
+      "icon": "🏖️",
+      "rarity": 1,
+      "buyPrice": 2,
+      "sellPrice": 1,
+      "description": "Blok z pustyni i plaży"
+    },
+    {
+      "id": "clay",
+      "name": "Glina",
+      "icon": "🧱",
+      "rarity": 2,
+      "buyPrice": 8,
+      "sellPrice": 4,
+      "description": "Materiał do produkcji ceramiki"
+    },
+    {
+      "id": "obsidian",
+      "name": "Obsydian",
+      "icon": "⬛",
+      "rarity": 5,
+      "buyPrice": 100,
+      "sellPrice": 50,
+      "description": "Najtwardszy blok w grze"
+    },
+    {
+      "id": "redstone",
+      "name": "Czerwony kamień",
+      "icon": "🔴",
+      "rarity": 3,
+      "buyPrice": 30,
+      "sellPrice": 15,
+      "description": "Używany do tworzenia obwodów"
+    },
+    {
+      "id": "lapis_lazuli",
+      "name": "Lapis Lazuli",
+      "icon": "🔵",
+      "rarity": 3,
+      "buyPrice": 40,
+      "sellPrice": 20,
+      "description": "Niebieski kamień szlachetny"
+    },
+    {
+      "id": "netherite_scrap",
+      "name": "Złom netherytu",
+      "icon": "🔥",
+      "rarity": 6,
+      "buyPrice": 500,
+      "sellPrice": 250,
+      "description": "Materiał z Netheru do najlepszego pancerza"
+    },
+    {
+      "id": "ancient_debris",
+      "name": "Starożytne szczątki",
+      "icon": "💀",
+      "rarity": 7,
+      "buyPrice": 1000,
+      "sellPrice": 500,
+      "description": "Bardzo rzadki materiał z Netheru"
+    },
+    {
+      "id": "quartz",
+      "name": "Kryształ kwarcu",
+      "icon": "✨",
+      "rarity": 4,
+      "buyPrice": 60,
+      "sellPrice": 30,
+      "description": "Kryształ z Netheru"
+    },
+    {
+      "id": "glowstone",
+      "name": "Świecący kamień",
+      "icon": "💡",
+      "rarity": 4,
+      "buyPrice": 80,
+      "sellPrice": 40,
+      "description": "Źródło światła z Netheru"
+    },
+    {
+      "id": "magma_block",
+      "name": "Blok magmy",
+      "icon": "🌋",
+      "rarity": 4,
+      "buyPrice": 70,
+      "sellPrice": 35,
+      "description": "Gorący blok z Netheru"
+    }
+  ],
+  "pickaxes": [
+    {
+      "id": "wooden_pickaxe",
+      "name": "Drewniany kilof",
+      "icon": "⛏️",
+      "multiplier": 1,
+      "price": 100,
+      "description": "Podstawowy kilof"
+    },
+    {
+      "id": "stone_pickaxe",
+      "name": "Kamienny kilof",
+      "icon": "⛏️",
+      "multiplier": 2,
+      "price": 500,
+      "description": "Lepszy kilof - 2x szans na rzadkie bloki"
+    },
+    {
+      "id": "iron_pickaxe",
+      "name": "Żelazny kilof",
+      "icon": "⛏️",
+      "multiplier": 3,
+      "price": 2000,
+      "description": "Dobry kilof - 3x szans na rzadkie bloki"
+    },
+    {
+      "id": "gold_pickaxe",
+      "name": "Złoty kilof",
+      "icon": "⛏️",
+      "multiplier": 4,
+      "price": 5000,
+      "description": "Świetny kilof - 4x szans na rzadkie bloki"
+    },
+    {
+      "id": "diamond_pickaxe",
+      "name": "Diamentowy kilof",
+      "icon": "⛏️",
+      "multiplier": 6,
+      "price": 15000,
+      "description": "Najlepszy zwykły kilof - 6x szans na rzadkie bloki"
+    },
+    {
+      "id": "netherite_pickaxe",
+      "name": "Netherytowy kilof",
+      "icon": "⛏️",
+      "multiplier": 10,
+      "price": 50000,
+      "description": "Legendarny kilof - 10x szans na rzadkie bloki"
+    }
+  ],
+  "settings": {
+    "mineCooldown": 5000,
+    "baseBlocksPerMine": 1,
+    "xpRequiredForMultiplier": 100
+  }
+}

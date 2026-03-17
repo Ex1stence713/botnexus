@@ -1,13 +1,21 @@
-import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
+import { EmbedBuilder } from 'discord.js';
 import economy from '../utils/economy.js';
 
-export const data = new SlashCommandBuilder()
-    .setName('balance')
-    .setDescription('Sprawdź stan swojego konta')
-    .addUserOption(opt => opt.setName('user').setDescription('Sprawdź konto innego użytkownika').setRequired(false));
+export const name = 'balance';
+export const description = 'Sprawdź stan swojego konta';
 
-export async function execute(interaction) {
-    const targetUser = interaction.options.getUser('user') || interaction.user;
+export async function execute(message, args) {
+    let targetUser = message.author;
+    
+    if (args.length > 0) {
+        const userId = args[0].replace(/<@!/g, '').replace(/<@/g, '').replace(/>/g, '');
+        try {
+            targetUser = await message.client.users.fetch(userId);
+        } catch (e) {
+            return message.reply('Nie znaleziono użytkownika!');
+        }
+    }
+    
     const user = economy.getUser(targetUser.id);
     
     // Oblicz poziom na podstawie całkowitych zarobków
@@ -36,5 +44,5 @@ export async function execute(interaction) {
         );
     }
     
-    await interaction.reply({ embeds: [balanceEmbed] });
+    await message.reply({ embeds: [balanceEmbed] });
 }
