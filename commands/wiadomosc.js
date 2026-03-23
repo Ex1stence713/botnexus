@@ -1,7 +1,7 @@
 import { EmbedBuilder, PermissionFlagsBits } from 'discord.js';
 
 export const name = 'dm';
-export const description = 'Wyślij prywatną wiadomość do wszystkich użytkowników z określoną rolą.';
+export const description = 'Wyślij prywatną wiadomość do wybranego użytkownika.';
 
 export async function execute(message, args) {
     const ownerId = process.env.BOT_OWNER_ID;
@@ -13,19 +13,29 @@ export async function execute(message, args) {
     }
     
     if (args.length < 2) {
-        return message.reply('Podaj rolę i wiadomość! Użycie: !dm <rola> <wiadomość>');
+        return message.reply('Podaj użytkownika i wiadomość! Użycie: !dm <@użytkownik> <wiadomość>');
     }
     
     if (!message.guild) {
         return message.reply('Ta komenda działa tylko na serwerze!');
     }
     
-    // Znajdź rolę
-    const roleName = args[0];
-    const role = message.guild.roles.cache.find(r => r.name.toLowerCase() === roleName.toLowerCase());
+    // Pobierz pierwszy argument jako użytkownika (mention lub ID)
+    const userArg = args[0];
+    let targetUser = null;
     
-    if (!role) {
-        return message.reply('Nie znaleziono takiej roli!');
+    // Obsłuż mention użytkownika (<@!ID> lub <@ID>)
+    const mentionMatch = userArg.match(/^<@!?(\d+)>$/);
+    if (mentionMatch) {
+        const userId = mentionMatch[1];
+        targetUser = message.guild.members.cache.get(userId)?.user || await message.client.users.fetch(userId).catch(() => null);
+    } else if (/^\d+$/.test(userArg)) {
+        // ID użytkownika
+        targetUser = message.guild.members.cache.get(userArg)?.user || await message.client.users.fetch(userArg).catch(() => null);
+    }
+    
+    if (!targetUser) {
+        return message.reply('Nie znaleziono takiego użytkownika!');
     }
     
     const text = args.slice(1).join(' ');
@@ -35,12 +45,6 @@ export async function execute(message, args) {
         return message.reply('Wiadomość jest za długa — max 2000 znaków.');
     }
     
-    const roleMembers = role.members;
-
-    if (roleMembers.size === 0) {
-        return message.reply(`Nie znaleziono użytkowników z rolą ${role.name}.`);
-    }
-
     // Tworzymy embed dla wiadomości
     const dmEmbed = new EmbedBuilder()
         .setTitle('📨 Nowa Wiadomość')
@@ -57,41 +61,27 @@ export async function execute(message, args) {
 
     await message.reply('📤 Trwa wysyłanie wiadomości...');
 
-    // Wysyłanie wiadomości do wszystkich członków z rolą
-    let successCount = 0;
-    let failCount = 0;
-    const failedUsers = [];
+    // Wysyłanie wiadomości do użytkownika
+    try {
+        const user = await targetUser.createDM();
+        await user.send({ embeds: [dmEmbed] });
+        
+        // Log
+        console.log(`Wiadomość wysłana do użytkownika ${targetUser.tag} przez ${message.author.tag}`);
 
-    for (const [memberId, memberUser] of roleMembers) {
-        try {
-            await memberUser.send({ embeds: [dmEmbed] });
-            successCount++;
-        } catch (err) {
-            failCount++;
-            failedUsers.push(memberUser.tag);
-            console.error(`Błąd przy wysyłaniu DM do ${memberUser.tag}:`, err);
-        }
+        // Embed z wynikami
+        const resultEmbed = new EmbedBuilder()
+            .setTitle('✅ Wiadomość wysłana')
+            .setColor(0x57F287)
+            .addFields(
+                { name: '👤 Odbiorca', value: targetUser.tag, inline: true },
+                { name: '📝 Treść', value: text.substring(0, 100) + (text.length > 100 ? '...' : ''), inline: false }
+            )
+            .setTimestamp();
+
+        await message.reply({ embeds: [resultEmbed] });
+    } catch (err) {
+        console.error(`Błąd przy wysyłaniu DM do ${targetUser.tag}:`, err);
+        await message.reply(`❌ Nie udało się wysłać wiadomości do ${targetUser.tag}. Użytkownik może mieć zablokowane DM.`);
     }
-
-    // Log
-    console.log(`Wiadomość wysłana do ${successCount} użytkowników z rolą ${role.name} przez ${message.author.tag}`);
-
-    // Embed z wynikami
-    const resultEmbed = new EmbedBuilder()
-        .setTitle('✅ Wysyłanie zakończone')
-        .setColor(failCount > 0 ? 0xFEE75C : 0x57F287)
-        .addFields(
-            { name: '✅ Wysłane', value: `${successCount}`, inline: true },
-            { name: '❌ Niepowodzenia', value: `${failCount}`, inline: true },
-            { name: '👥 Rola', value: role.name, inline: false }
-        )
-        .setTimestamp();
-
-    if (failedUsers.length > 0 && failedUsers.length <= 5) {
-        resultEmbed.addFields(
-            { name: '⚠️ Niepowodzenia', value: failedUsers.join(', '), inline: false }
-        );
-    }
-
-    await message.reply({ embeds: [resultEmbed] });
 }
