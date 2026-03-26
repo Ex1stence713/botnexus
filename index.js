@@ -5,7 +5,13 @@ import {
     REST,
     Routes,
     ActivityType,
-    EmbedBuilder
+    EmbedBuilder,
+    ModalBuilder,
+    ActionRowBuilder,
+    ButtonBuilder,
+    ButtonStyle,
+    TextInputBuilder,
+    TextInputStyle
 } from 'discord.js';
 
 import fs from 'fs';
@@ -643,6 +649,181 @@ client.on('interactionCreate', async interaction => {
     }
 
 });
+
+// ===========================
+// INTERAKCJE - BUTTONY (weryfikacja)
+// ===========================
+client.on('interactionCreate', async interaction => {
+    if (!interaction.isButton()) return;
+    
+    if (interaction.customId === 'verify_button') {
+        try {
+            // Importuj konfigurację weryfikacji
+            const { loadVerificationConfig, saveVerificationConfig, generateCaptcha } = await import('./commands/weryfikacja.js');
+            const config = await loadVerificationConfig();
+            
+            if (!config.enabled) {
+                return interaction.reply({ content: '❌ System weryfikacji jest wyłączony!', ephemeral: true });
+            }
+            
+            const { guild, user, member } = interaction;
+            
+            // Sprawdź czy użytkownik jest już zweryfikowany
+            if (config.verifiedUsers[user.id]) {
+                return interaction.reply({ content: '✅ Jesteś już zweryfikowany!', ephemeral: true });
+            }
+            
+            // Sprawdź cooldown
+            const lastAttempt = config.verifiedUsers[user.id]?.lastAttempt || 0;
+            const cooldownEnd = lastAttempt + (config.verificationCooldown * 1000);
+            if (Date.now() < cooldownEnd) {
+                const remaining = Math.ceil((cooldownEnd - Date.now()) / 1000);
+                return interaction.reply({ content: `⏰ Poczekaj ${remaining} sekund przed kolejną próbą!`, ephemeral: true });
+            }
+            
+            // Sprawdź max prób
+            const attempts = config.verifiedUsers[user.id]?.attempts || 0;
+            if (attempts >= config.maxAttempts) {
+                return interaction.reply({ content: `❌ Przekroczono maksymalną liczbę prób (${config.maxAttempts})! Skontaktuj się z administratorem.`, ephemeral: true });
+            }
+            
+            // Jeśli wymagana CAPTCHA
+            if (config.requireCaptcha) {
+                const captcha = generateCaptcha(config.captchaDifficulty);
+                
+                // Zapisz CAPTCHA tymczasowo
+                if (!config.verifiedUsers[user.id]) {
+                    config.verifiedUsers[user.id] = {};
+                }
+                config.verifiedUsers[user.id].captcha = captcha;
+                config.verifiedUsers[user.id].lastAttempt = Date.now();
+                config.verifiedUsers[user.id].attempts = (config.verifiedUsers[user.id].attempts || 0) + 1;
+                await saveVerificationConfig(config);
+                
+                // Utwórz modal z CAPTCHA
+                const modal = new ModalBuilder()
+                    .setCustomId('verify_captcha_modal')
+                    .setTitle('Weryfikacja CAPTCHA');
+                
+                const captchaInput = new TextInputBuilder()
+                    .setCustomId('captcha_input')
+                    .setLabel(`Wpisz kod: ${captcha}`)
+                    .setStyle(TextInputStyle.Short)
+                    .setRequired(true);
+                
+                const firstActionRow = new ActionRowBuilder().addComponents(captchaInput);
+                modal.addComponents(firstActionRow);
+                
+                return interaction.showModal(modal);
+            }
+            
+            // Bez CAPTCHA - od razu weryfikuj
+            await verifyUser(interaction, config);
+            
+        } catch (error) {
+            console.error('[Weryfikacja] Błąd:', error);
+            return interaction.reply({ content: '❌ Wystąpił błąd podczas weryfikacji!', ephemeral: true });
+        }
+    }
+});
+
+// ===========================
+// INTERAKCJE - MODALE (weryfikacja CAPTCHA)
+// ===========================
+client.on('interactionCreate', async interaction => {
+    if (!interaction.isModalSubmit()) return;
+    
+    if (interaction.customId === 'verify_captcha_modal') {
+        try {
+            const { loadVerificationConfig, saveVerificationConfig } = await import('./commands/weryfikacja.js');
+            const config = await loadVerificationConfig();
+            
+            const { user, guild } = interaction;
+            const captchaInput = interaction.fields.getTextInputValue('captcha_input');
+            
+            // Sprawdź CAPTCHA
+            const userCaptcha = config.verifiedUsers[user.id]?.captcha;
+            if (!userCaptcha || captchaInput !== userCaptcha) {
+                // Zwiększ liczbę prób
+                if (!config.verifiedUsers[user.id]) {
+                    config.verifiedUsers[user.id] = {};
+                }
+                config.verifiedUsers[user.id].attempts = (config.verifiedUsers[user.id].attempts || 0) + 1;
+                config.verifiedUsers[user.id].lastAttempt = Date.now();
+                await saveVerificationConfig(config);
+                
+                const remaining = config.maxAttempts - config.verifiedUsers[user.id].attempts;
+                return interaction.reply({ content: `❌ Nieprawidłowy kod CAPTCHA! Pozostało prób: ${remaining}`, ephemeral: true });
+            }
+            
+            // CAPTCHA poprawna - weryfikuj użytkownika
+            await verifyUser(interaction, config);
+            
+        } catch (error) {
+            console.error('[Weryfikacja CAPTCHA] Błąd:', error);
+            return interaction.reply({ content: '❌ Wystąpił błąd podczas weryfikacji!', ephemeral: true });
+        }
+    }
+});
+
+// Funkcja weryfikacji użytkownika
+async function verifyUser(interaction, config) {
+    const { guild, user, member } = interaction;
+    
+    try {
+        // Pobierz rolę zweryfikowanych
+        const verifiedRole = guild.roles.cache.get(config.verifiedRoleId);
+        if (!verifiedRole) {
+            return interaction.reply({ content: '❌ Rola zweryfikowanych nie istnieje!', ephemeral: true });
+        }
+        
+        // Sprawdź hierarchię ról
+        if (guild.members.me.roles.highest.position <= verifiedRole.position) {
+            return interaction.reply({ content: '❌ Bot nie może nadać tej roli!', ephemeral: true });
+        }
+        
+        // Nadaj rolę
+        await member.roles.add(verifiedRole);
+        
+        // Zapisz weryfikację
+        config.verifiedUsers[user.id] = {
+            verifiedAt: Date.now(),
+            username: user.tag
+        };
+        await saveVerificationConfig(config);
+        
+        // Odpowiedz użytkownikowi
+        const successEmbed = new EmbedBuilder()
+            .setTitle('✅ Weryfikacja zakończona!')
+            .setDescription(`Pomyślnie zweryfikowano! Rola ${verifiedRole} została nadana.`)
+            .setColor(0x57F287)
+            .setTimestamp();
+        
+        await interaction.reply({ embeds: [successEmbed], ephemeral: true });
+        
+        // Loguj weryfikację
+        if (config.logChannelId) {
+            const logChannel = guild.channels.cache.get(config.logChannelId);
+            if (logChannel) {
+                const logEmbed = new EmbedBuilder()
+                    .setTitle('🔐 Nowa weryfikacja')
+                    .setColor(0x57F287)
+                    .addFields(
+                        { name: 'Użytkownik', value: user.tag, inline: true },
+                        { name: 'ID', value: user.id, inline: true },
+                        { name: 'Data', value: new Date().toLocaleString('pl-PL'), inline: true }
+                    )
+                    .setTimestamp();
+                
+                logChannel.send({ embeds: [logEmbed] }).catch(() => {});
+            }
+        }
+        
+    } catch (error) {
+        console.error('[Weryfikacja] Błąd nadawania roli:', error);
+        return interaction.reply({ content: '❌ Wystąpił błąd podczas nadawania roli!', ephemeral: true });
+    }
+}
 
 // ===========================
 // INIT

@@ -1,0 +1,16 @@
+{
+  "enabled": false,
+  "verificationRoleId": null,
+  "verifiedRoleId": null,
+  "verificationChannelId": null,
+  "logChannelId": null,
+  "verificationMessage": "Kliknij przycisk poniżej, aby się zweryfikować!",
+  "verificationButtonText": "Zweryfikuj się",
+  "verificationButtonEmoji": "✅",
+  "autoVerifyOnJoin": false,
+  "requireCaptcha": false,
+  "captchaDifficulty": "medium",
+  "verificationCooldown": 60,
+  "maxAttempts": 3,
+  "verifiedUsers": {}
+}
