@@ -14,8 +14,8 @@ export async function execute(message, args) {
 
     // Przypisz komendy do kategorii
     const economyCommands = ['balance', 'daily', 'gamble', 'shop', 'buy', 'pay', 'mine', 'leaderboard', 'lowrybe'];
-    const gameCommands = ['joke', 'poll', 'ankieta', 'ticket'];
-    const adminCommands = ['ban', 'kick', 'clear', 'mute', 'unmute', 'warn', 'control', 'restart', 'automod', 'przypomnij-admin', 'announce', 'changelog', 'dmall', 'dm', 'nadajrole', 'dajrange', 'regulamin'];
+    const gameCommands = ['joke', 'poll', 'ankieta', 'ticket', '8ball', 'roll', 'flip', 'choose', 'ship', 'roast', 'compliment', 'rate', 'calc', 'password', 'quote', 'fact', 'color', 'trivia'];
+    const adminCommands = ['ban', 'kick', 'clear', 'mute', 'unmute', 'warn', 'timeout', 'unban', 'lock', 'unlock', 'slowmode', 'control', 'restart', 'automod', 'przypomnij-admin', 'announce', 'changelog', 'dmall', 'dm', 'nadajrole', 'dajrange', 'regulamin'];
     
     const allCommands = message.client.commands;
     

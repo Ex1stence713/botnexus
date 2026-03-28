@@ -19,6 +19,7 @@ import path from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
 import dotenv from 'dotenv';
 import { setupVoiceEvents, setControlChannel } from './commands/autokanal.js';
+import { startAutoTrivia } from './commands/trivia.js';
 
 dotenv.config();
 
@@ -579,6 +580,9 @@ client.once('ready', async () => {
     // Setup autokanały
     setupVoiceEvents(client);
     setControlChannel(VOICE_CONTROL_CHANNEL);
+    
+    // Uruchom auto-trivia
+    startAutoTrivia(client);
 
 });
 
