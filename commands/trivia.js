@@ -82,8 +82,8 @@ const questions = [
 ];
 
 // Konfiguracja auto-trivia
-const TRIVIA_CHANNEL_ID = '1486795745376862302'; // ID kanału do auto-trivia
-const TRIVIA_INTERVAL = 300000; // 5 minut w milisekundach
+const TRIVIA_CHANNEL_ID = '1487725516810354718'; // ID kanału do auto-trivia
+const TRIVIA_INTERVAL = 3600000; // 1 godzina w milisekundach
 
 let triviaInterval = null;
 
