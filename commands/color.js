@@ -75,7 +75,7 @@ export async function execute(message, args) {
             { name: '🔢 RGB', value: `rgb(${r}, ${g}, ${b})`, inline: true },
             { name: '🔢 HSL', value: `hsl(${h}, ${s}%, ${l}%)`, inline: true }
         )
-        .setFooter({ text: `Zapytanie od: ${message.author.tag} • BotNexus` })
+        .setFooter({ text: 'BotNexus' })
         .setTimestamp();
     
     await message.reply({ embeds: [embed] });

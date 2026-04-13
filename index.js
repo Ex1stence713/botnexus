@@ -729,6 +729,23 @@ client.on('interactionCreate', async interaction => {
             return interaction.reply({ content: '❌ Wystąpił błąd podczas weryfikacji!', ephemeral: true });
         }
     }
+
+    // Obsługa przycisków ticketów
+    if (interaction.customId.startsWith('ticket_')) {
+        try {
+            const { handleTicketButton, handleTicketCloseButton } = await import('./commands/ticket.js');
+            
+            if (interaction.customId.startsWith('ticket_close_')) {
+                await handleTicketCloseButton(interaction);
+            } else if (interaction.customId.startsWith('ticket_')) {
+                await handleTicketButton(interaction);
+            }
+        } catch (error) {
+            console.error('[Ticket] Błąd:', error);
+            return interaction.reply({ content: '❌ Wystąpił błąd podczas tworzenia ticketu!', ephemeral: true });
+        }
+        return;
+    }
 });
 
 // ===========================

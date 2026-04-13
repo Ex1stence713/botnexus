@@ -64,7 +64,7 @@ export async function execute(message, args) {
             { name: '💕 Kompatybilność', value: `**${compatibility}%** ${bar}`, inline: false },
             { name: '📊 Status', value: status, inline: false }
         )
-        .setFooter({ text: `Zapytanie od: ${message.author.tag} • BotNexus` })
+        .setFooter({ text: 'BotNexus' })
         .setTimestamp();
     
     await message.reply({ embeds: [embed] });

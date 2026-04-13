@@ -9,11 +9,11 @@ export async function execute(message, args) {
     
     const embed = new EmbedBuilder()
         .setTitle('🪙 Rzut monetą')
-        .setColor('#5865F2')
+        .setColor(0x5865F2)
         .addFields(
             { name: '🎯 Wynik', value: `${emoji} **${result}**`, inline: false }
         )
-        .setFooter({ text: `Zapytanie od: ${message.author.tag} • BotNexus` })
+        .setFooter({ text: 'BotNexus' })
         .setTimestamp();
     
     await message.reply({ embeds: [embed] });

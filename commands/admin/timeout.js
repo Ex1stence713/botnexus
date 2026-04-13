@@ -43,26 +43,35 @@ export async function execute(message, args) {
         await target.timeout(durationMs, reason);
         
         const embed = new EmbedBuilder()
-            .setDescription(`🔇 Wyciszono użytkownika **${target.user.tag}** na ${duration} minut\nPowód: ${reason}`)
-            .setColor(0xED4245);
+            .setColor(0xED4245)
+            .setTitle('🔇 Użytkownik wyciszony')
+            .addFields(
+                { name: '👤 Użytkownik', value: target.user.tag, inline: true },
+                { name: '⏱️ Czas', value: `${duration} minut`, inline: true },
+                { name: '📝 Powód', value: reason, inline: true },
+                { name: '🛡️ Moderator', value: message.author.tag, inline: true }
+            )
+            .setFooter({ text: 'BotNexus' })
+            .setTimestamp();
         await message.reply({ embeds: [embed] });
         
-        // Wyślij DM do użytkownika
         const dmEmbed = new EmbedBuilder()
-            .setTitle('🔇 Zostałeś wyciszony')
-            .setDescription(`Zostałeś wyciszony na serwerze **${guild.name}** na ${duration} minut`)
-            .addFields(
-                { name: 'Powód', value: reason, inline: false },
-                { name: 'Moderator', value: message.author.tag, inline: false }
-            )
             .setColor(0xED4245)
+            .setTitle('🔇 Otrzymałeś wyciszenie!')
+            .addFields(
+                { name: '📛 Serwer', value: guild.name, inline: false },
+                { name: '⏱️ Czas', value: `${duration} minut`, inline: false },
+                { name: '📝 Powód', value: reason, inline: false },
+                { name: '🛡️ Moderator', value: message.author.tag, inline: false }
+            )
+            .setFooter({ text: 'BotNexus' })
             .setTimestamp();
         
         await target.send({ embeds: [dmEmbed] }).catch(() => {});
     } catch (err) {
         const embed = new EmbedBuilder()
-            .setDescription(`❌ Błąd: ${err.message}`)
-            .setColor(0xED4245);
+            .setColor(0xED4245)
+            .setDescription(`❌ Błąd: ${err.message}`);
         await message.reply({ embeds: [embed] });
     }
 }

@@ -19,7 +19,7 @@ export async function execute(message, args) {
     
     const embed = new EmbedBuilder()
         .setTitle(`🖼️ Avatar ${user.username}`)
-        .setColor('#5865F2')
+        .setColor(0x5865F2)
         .setImage(avatarUrl)
         .addFields(
             { name: '👤 Użytkownik', value: user.tag, inline: true },

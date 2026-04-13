@@ -33,7 +33,7 @@ export async function execute(message, args) {
         .setTitle('📚 Ciekawy fakt')
         .setColor(0x5865F2)
         .setDescription(randomFact)
-        .setFooter({ text: `Zapytanie od: ${message.author.tag} • BotNexus` })
+        .setFooter({ text: 'BotNexus' })
         .setTimestamp();
     
     await message.reply({ embeds: [embed] });

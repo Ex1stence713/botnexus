@@ -34,12 +34,12 @@ export async function execute(message, args) {
     
     const embed = new EmbedBuilder()
         .setTitle('🎲 Rzut kością')
-        .setColor('#5865F2')
+        .setColor(0x5865F2)
         .addFields(
             { name: '📊 Zakres', value: `${min} - ${max}`, inline: true },
             { name: '🎯 Wynik', value: `**${result}**`, inline: true }
         )
-        .setFooter({ text: `Zapytanie od: ${message.author.tag} • BotNexus` })
+        .setFooter({ text: 'BotNexus' })
         .setTimestamp();
     
     await message.reply({ embeds: [embed] });

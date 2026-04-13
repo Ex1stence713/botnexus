@@ -35,26 +35,33 @@ export async function execute(message, args) {
     
     try {
         const embed = new EmbedBuilder()
-            .setDescription(`⚠️ Ostrzeżono użytkownika **${target.user.tag}**\nPowód: ${reason}`)
-            .setColor(0xFEE75C);
+            .setColor(0xFEE75C)
+            .setTitle('⚠️ Użytkownik ostrzeżony')
+            .addFields(
+                { name: '👤 Użytkownik', value: target.user.tag, inline: true },
+                { name: '📝 Powód', value: reason, inline: true },
+                { name: '🛡️ Moderator', value: message.author.tag, inline: true }
+            )
+            .setFooter({ text: 'BotNexus' })
+            .setTimestamp();
         await message.reply({ embeds: [embed] });
         
-        // Wyślij DM do użytkownika
         const dmEmbed = new EmbedBuilder()
-            .setTitle('⚠️ Zostałeś ostrzeżony')
-            .setDescription(`Zostałeś ostrzeżony na serwerze **${guild.name}**`)
-            .addFields(
-                { name: 'Powód', value: reason, inline: false },
-                { name: 'Moderator', value: message.author.tag, inline: false }
-            )
             .setColor(0xFEE75C)
+            .setTitle('⚠️ Otrzymałeś ostrzeżenie!')
+            .addFields(
+                { name: '📛 Serwer', value: guild.name, inline: false },
+                { name: '📝 Powód', value: reason, inline: false },
+                { name: '🛡️ Moderator', value: message.author.tag, inline: false }
+            )
+            .setFooter({ text: 'BotNexus' })
             .setTimestamp();
         
         await target.send({ embeds: [dmEmbed] }).catch(() => {});
     } catch (err) {
         const embed = new EmbedBuilder()
-            .setDescription(`❌ Błąd: ${err.message}`)
-            .setColor(0xED4245);
+            .setColor(0xED4245)
+            .setDescription(`❌ Błąd: ${err.message}`);
         await message.reply({ embeds: [embed] });
     }
 }

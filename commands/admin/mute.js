@@ -53,13 +53,27 @@ export async function execute(message, args) {
         }, time * 60 * 1000);
         
         const embed = new EmbedBuilder()
-            .setDescription(`Wyciszono **${target.user.tag}** na ${time} minut.`)
-            .setColor(0x57F287);
+            .setColor(0xFEE75C)
+            .setTitle('🔇 Użytkownik wyciszony')
+            .addFields(
+                { name: '👤 Użytkownik', value: target.user.tag, inline: true },
+                { name: '⏱️ Czas', value: `${time} minut`, inline: true },
+                { name: '🛡️ Moderator', value: message.author.tag, inline: true }
+            )
+            .setFooter({ text: 'BotNexus' })
+            .setTimestamp();
         await message.reply({ embeds: [embed] });
     } else {
         const embed = new EmbedBuilder()
-            .setDescription(`Wyciszono **${target.user.tag}**.`)
-            .setColor(0x57F287);
+            .setColor(0xFEE75C)
+            .setTitle('🔇 Użytkownik wyciszony')
+            .addFields(
+                { name: '👤 Użytkownik', value: target.user.tag, inline: true },
+                { name: '⏱️ Czas', value: 'Na czas nieokreślony', inline: true },
+                { name: '🛡️ Moderator', value: message.author.tag, inline: true }
+            )
+            .setFooter({ text: 'BotNexus' })
+            .setTimestamp();
         await message.reply({ embeds: [embed] });
     }
 }

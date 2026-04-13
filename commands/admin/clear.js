@@ -1,8 +1,10 @@
+import { EmbedBuilder, PermissionFlagsBits } from 'discord.js';
+
 export const name = 'clear';
 export const description = 'Czyści wiadomości';
 
 export async function execute(message, args) {
-    if (!message.member?.permissions.has('ManageMessages')) {
+    if (!message.member?.permissions.has(PermissionFlagsBits.ManageMessages)) {
         return message.reply('Nie masz uprawnień do zarządzania wiadomościami!');
     }
     
@@ -18,8 +20,20 @@ export async function execute(message, args) {
     
     try {
         await message.channel.bulkDelete(amount, true);
-        await message.reply(`🧹 Usunięto ${amount} wiadomości.`);
+        const embed = new EmbedBuilder()
+            .setColor(0x57F287)
+            .setTitle('🧹 Wiadomości usunięte')
+            .addFields(
+                { name: '📊 Ilość', value: `${amount} wiadomości`, inline: true },
+                { name: '🛡️ Moderator', value: message.author.tag, inline: true }
+            )
+            .setFooter({ text: 'BotNexus' })
+            .setTimestamp();
+        await message.reply({ embeds: [embed] });
     } catch (err) {
-        await message.reply(`❌ Błąd: ${err.message}`);
+        const embed = new EmbedBuilder()
+            .setColor(0xED4245)
+            .setDescription(`❌ Błąd: ${err.message}`);
+        await message.reply({ embeds: [embed] });
     }
 }

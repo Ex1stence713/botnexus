@@ -31,7 +31,7 @@ export async function execute(message, args) {
         .addFields(
             { name: '✍️ Autor', value: randomQuote.author, inline: false }
         )
-        .setFooter({ text: `Zapytanie od: ${message.author.tag} • BotNexus` })
+        .setFooter({ text: 'BotNexus' })
         .setTimestamp();
     
     await message.reply({ embeds: [embed] });

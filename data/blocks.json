@@ -179,6 +179,78 @@
       "buyPrice": 70,
       "sellPrice": 35,
       "description": "Gorący blok z Netheru"
+    },
+    {
+      "id": "copper_ore",
+      "name": "Ruda miedzi",
+      "icon": "🟠",
+      "rarity": 2,
+      "buyPrice": 12,
+      "sellPrice": 6,
+      "description": "Miedziany materiał powszechnie używany"
+    },
+    {
+      "id": "amethyst",
+      "name": "Ametyst",
+      "icon": "💜",
+      "rarity": 5,
+      "buyPrice": 200,
+      "sellPrice": 100,
+      "description": "Piękny fioletowy klejnot"
+    },
+    {
+      "id": "prismarine",
+      "name": "Prismaryna",
+      "icon": "🔷",
+      "rarity": 4,
+      "buyPrice": 90,
+      "sellPrice": 45,
+      "description": "Blok z podwodnego zamku"
+    },
+    {
+      "id": "sea_lantern",
+      "name": "Morska latarnia",
+      "icon": "🔆",
+      "rarity": 4,
+      "buyPrice": 120,
+      "sellPrice": 60,
+      "description": "Świecący blok z głębin oceanu"
+    },
+    {
+      "id": "sponge",
+      "name": "Gąbka",
+      "icon": "🧽",
+      "rarity": 3,
+      "buyPrice": 35,
+      "sellPrice": 17,
+      "description": "Wchłania wodę!"
+    },
+    {
+      "id": "ancient_debris_enhanced",
+      "name": "Ulepszone starożytne szczątki",
+      "icon": "⚡",
+      "rarity": 8,
+      "buyPrice": 5000,
+      "sellPrice": 2500,
+      "description": "Ekstremalnie rzadki materiał z netherytu"
+    },
+    {
+      "id": "dragon_egg",
+      "name": "Jajo smoka",
+      "icon": "🥚",
+      "rarity": 9,
+      "buyPrice": 10000,
+      "sellPrice": 5000,
+      "description": "Najrzadszy blok w grze!"
+    },
+    {
+      "id": "heart_of_the_sea",
+      "name": "Serce oceanu",
+      "icon": "💙",
+      "rarity": 8,
+      "buyPrice": 7500,
+      "sellPrice": 3750,
+      "description": "Legendarne skarbiec z głębin"
     }
   ],
   "pickaxes": [
@@ -229,6 +301,22 @@
       "multiplier": 10,
       "price": 50000,
       "description": "Legendarny kilof - 10x szans na rzadkie bloki"
+    },
+    {
+      "id": "diamond_upgraded",
+      "name": "Ulepszony diamentowy kilof",
+      "icon": "💎",
+      "multiplier": 12,
+      "price": 75000,
+      "description": "Ultra-legendarny kilof - 12x"
+    },
+    {
+      "id": "cosmic_pickaxe",
+      "name": "Kosmicki kilof",
+      "icon": "🌌",
+      "multiplier": 15,
+      "price": 100000,
+      "description": "Kosmiczny poziom - 15x"
     }
   ],
   "settings": {

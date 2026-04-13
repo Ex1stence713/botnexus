@@ -1,38 +1,59 @@
+import { EmbedBuilder, PermissionFlagsBits } from 'discord.js';
+
 export const name = 'ban';
 export const description = 'Banuje użytkownika';
 
 export async function execute(message, args) {
-    if (!message.member?.permissions.has('BanMembers')) {
-        return message.reply('Nie masz uprawnień do banowania!');
+    const { guild, member } = message;
+
+    if (!guild) return message.reply('Ta komenda działa tylko na serwerze.');
+
+    if (!member?.permissions.has(PermissionFlagsBits.BanMembers)) {
+        return message.reply('Nie masz uprawnień do banowania użytkowników.');
     }
-    
+
     if (args.length === 0) {
         return message.reply('Podaj użytkownika! Użycie: !ban <@użytkownik> [powód]');
     }
     
-    if (!message.guild) {
-        return message.reply('Ta komenda działa tylko na serwerze!');
-    }
-    
     const userId = args[0].replace(/<@!?/g, '').replace(/>/g, '');
-    let target;
-    try {
-        target = await message.client.users.fetch(userId);
-    } catch (e) {
-        return message.reply('Nie znaleziono użytkownika!');
-    }
+    const target = await guild.members.fetch(userId).catch(() => null);
     
-    const member = await message.guild.members.fetch(userId).catch(() => null);
-    if (!member) {
+    if (!target) {
         return message.reply('Nie znaleziono użytkownika na serwerze.');
     }
-    
-    const reason = args.slice(1).join(' ') || `Zbanowany przez ${message.author.tag}`;
+
+    if (target.id === member.id) {
+        return message.reply('Nie możesz wykonać tej akcji na sobie.');
+    }
+
+    if (!guild.members.me.permissions.has(PermissionFlagsBits.BanMembers)) {
+        return message.reply('Bot nie ma uprawnień do banowania użytkowników.');
+    }
+
+    if (!target.bannable) {
+        return message.reply('Nie mogę zbanować tego użytkownika (zbyt wysoka rola?).');
+    }
+
+    const reason = args.slice(1).join(' ') || 'Brak powodu';
     
     try {
-        await member.ban({ reason: reason });
-        await message.reply(`🔨 ${target.tag} został zbanowany. Powód: ${reason}`);
+        await target.ban({ reason: reason });
+        const embed = new EmbedBuilder()
+            .setColor(0xED4245)
+            .setTitle('🔨 Użytkownik zbanowany')
+            .addFields(
+                { name: '👤 Użytkownik', value: target.user.tag, inline: true },
+                { name: '📝 Powód', value: reason, inline: true },
+                { name: '🛡️ Moderator', value: message.author.tag, inline: true }
+            )
+            .setFooter({ text: 'BotNexus' })
+            .setTimestamp();
+        await message.reply({ embeds: [embed] });
     } catch (err) {
-        await message.reply(`❌ Błąd: ${err.message}`);
+        const embed = new EmbedBuilder()
+            .setColor(0xED4245)
+            .setDescription(`❌ Błąd: ${err.message}`);
+        await message.reply({ embeds: [embed] });
     }
 }

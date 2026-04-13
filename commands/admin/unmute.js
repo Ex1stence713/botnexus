@@ -1,4 +1,4 @@
-import { PermissionFlagsBits } from 'discord.js';
+import { EmbedBuilder, PermissionFlagsBits } from 'discord.js';
 
 export const name = 'unmute';
 export const description = 'Odcisza użytkownika';
@@ -39,5 +39,15 @@ export async function execute(message, args) {
     }
 
     await target.roles.remove(muteRole);
-    await message.reply(`Odciszono **${target.user.tag}**.`);
+    
+    const embed = new EmbedBuilder()
+        .setColor(0x57F287)
+        .setTitle('🔊 Użytkownik odciszony')
+        .addFields(
+            { name: '👤 Użytkownik', value: target.user.tag, inline: true },
+            { name: '🛡️ Moderator', value: message.author.tag, inline: true }
+        )
+        .setFooter({ text: 'BotNexus' })
+        .setTimestamp();
+    await message.reply({ embeds: [embed] });
 }

@@ -31,12 +31,12 @@ export async function execute(message, args) {
     
     const embed = new EmbedBuilder()
         .setTitle('🎱 Magiczna Kula 8')
-        .setColor('#5865F2')
+        .setColor(0x5865F2)
         .addFields(
             { name: '❓ Twoje pytanie', value: question, inline: false },
             { name: '🔮 Odpowiedź', value: randomResponse, inline: false }
         )
-        .setFooter({ text: `Zapytanie od: ${message.author.tag} • BotNexus` })
+        .setFooter({ text: 'BotNexus' })
         .setTimestamp();
     
     await message.reply({ embeds: [embed] });

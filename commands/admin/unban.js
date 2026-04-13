@@ -26,18 +26,25 @@ export async function execute(message, args) {
             return message.reply('Ten użytkownik nie jest zbanowany!');
         }
         
-        const reason = args.slice(1).join(' ') || `Odbanowany przez ${message.author.tag}`;
+        const reason = args.slice(1).join(' ') || 'Brak powodu';
         
         await guild.members.unban(userId, reason);
         
         const embed = new EmbedBuilder()
-            .setDescription(`🔓 Odbanowano użytkownika **${bannedUser.user.tag}**\nPowód: ${reason}`)
-            .setColor(0x57F287);
+            .setColor(0x57F287)
+            .setTitle('🔓 Użytkownik odbanowany')
+            .addFields(
+                { name: '👤 Użytkownik', value: bannedUser.user.tag, inline: true },
+                { name: '📝 Powód', value: reason, inline: true },
+                { name: '🛡️ Moderator', value: message.author.tag, inline: true }
+            )
+            .setFooter({ text: 'BotNexus' })
+            .setTimestamp();
         await message.reply({ embeds: [embed] });
     } catch (err) {
         const embed = new EmbedBuilder()
-            .setDescription(`❌ Błąd: ${err.message}`)
-            .setColor(0xED4245);
+            .setColor(0xED4245)
+            .setDescription(`❌ Błąd: ${err.message}`);
         await message.reply({ embeds: [embed] });
     }
 }

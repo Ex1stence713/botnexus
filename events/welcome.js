@@ -4,7 +4,7 @@ export default {
   name: "guildMemberAdd",
 
   async execute(member) {
-    const channelId = "1463630781971829003";
+    const channelId = "1499838770365599941";
     const channel = member.guild.channels.cache.get(channelId);
     if (!channel) return;
 
