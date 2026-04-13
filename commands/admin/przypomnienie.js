@@ -1,3 +1,5 @@
+import { EmbedBuilder } from 'discord.js';
+
 export const name = 'przypomnij-admin';
 export const description = 'Przypomnienie o spotkaniu na PV do całej administracji';
 
@@ -31,16 +33,22 @@ export async function execute(message, args) {
         return message.reply('Podano nieprawidłową datę lub godzinę.');
     }
 
-    await message.reply(`Przypomnienie dla administracji ustawione na ${dateStr} ${timeStr}.`);
+    await message.reply(`✅ Przypomnienie dla administracji ustawione na **${dateStr} ${timeStr}**.`);
 
     setTimeout(async () => {
+        const embed = new EmbedBuilder()
+            .setColor(0x5865F2)
+            .setTitle('📅 Przypomnienie o spotkaniu!')
+            .addFields(
+                { name: '🕒 Data i czas', value: `**${dateStr} o godzinie ${timeStr}**`, inline: false },
+                { name: '📝 Treść', value: content, inline: false }
+            )
+            .setFooter({ text: 'Bot Nexus' })
+            .setTimestamp();
+
         for (const member of role.members.values()) {
             try {
-                await member.send(
-                    `📅 Przypomnienie o spotkaniu\n` +
-                    `🕒 ${dateStr} ${timeStr}\n\n` +
-                    content
-                );
+                await member.send({ embeds: [embed] });
             } catch {
                 console.log(`Nie można wysłać DM do ${member.user.tag}`);
             }
