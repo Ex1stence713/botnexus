@@ -1,7 +1,7 @@
 export const name = 'przypomnij-admin';
 export const description = 'Przypomnienie o spotkaniu na PV do całej administracji';
 
-const ADMIN_ROLE_ID = "1429200328275791945";
+const ADMIN_ROLE_ID = "1463651990331457546";
 
 export async function execute(message, args) {
     if (!message.guild) {
