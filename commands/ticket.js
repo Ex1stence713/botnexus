@@ -21,7 +21,7 @@ function loadConfig() {
 const config = loadConfig();
 
 const TICKET_CATEGORY_ID = '1487725516810354718';
-const SUPPORT_ROLE_ID = '1463651990331457546';
+const SUPPORT_ROLE_ID = '1499838769254367391';
 const TICKET_CHANNEL_PREFIX = 'ticket-';
 
 // ID kanału ticketów z configu (można zmienić komendą)
@@ -112,23 +112,145 @@ async function showTicketPanel(message) {
 }
 
 export async function handleTicketButton(interaction) {
-    const category = interaction.customId.replace('ticket_', '');
-    const categoryData = ticketCategories[category];
+    try {
+        const category = interaction.customId.replace('ticket_', '');
+        const categoryData = ticketCategories[category];
 
-    if (!categoryData) return;
+        if (!categoryData) {
+            return interaction.reply({ 
+                content: '❌ Nieprawidłowa kategoria ticketu!', 
+                ephemeral: true 
+            });
+        }
 
-    const guild = interaction.guild;
-    const user = interaction.user;
+        const guild = interaction.guild;
+        const user = interaction.user;
 
-    const existingTickets = userTickets.get(user.id) || [];
-    const userTicketCount = existingTickets.length;
+        const existingTickets = userTickets.get(user.id) || [];
+        const userTicketCount = existingTickets.length;
 
-    if (userTicketCount >= 5) {
-        return interaction.reply({ 
-            content: 'Masz już 5 otwartych ticketów! Zamknij jeden przed utworzeniem nowego.',
+        if (userTicketCount >= 5) {
+            return interaction.reply({ 
+                content: 'Masz już 5 otwartych ticketów! Zamknij jeden przed utworzeniem nowego.',
+                ephemeral: true 
+            });
+        }
+
+        const ticketId = Date.now().toString(36).toUpperCase();
+
+        // Pobierz kategorie
+        let categoryChannel = null;
+        if (TICKET_CATEGORY_ID) {
+            try {
+                categoryChannel = await guild.channels.fetch(TICKET_CATEGORY_ID);
+            } catch (err) {
+                console.error('❌ Błąd pobierania kategorii ticketów:', err);
+                categoryChannel = null;
+            }
+        }
+
+        // Utwórz kanał ticketu
+        const ticketChannel = await guild.channels.create({
+            name: `ticket-${ticketId}`,
+            type: ChannelType.GuildText,
+            parent: categoryChannel,
+            permissionOverwrites: [
+                {
+                    id: guild.id,
+                    deny: [PermissionFlagsBits.ViewChannel]
+                },
+                {
+                    id: user.id,
+                    allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory]
+                },
+                {
+                    id: SUPPORT_ROLE_ID,
+                    allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.ManageChannels]
+                }
+            ]
+        });
+
+        const ticketInfo = {
+            id: ticketId,
+            channelId: ticketChannel.id,
+            userId: user.id,
+            category: category,
+            createdAt: Date.now()
+        };
+
+        if (!userTickets.has(user.id)) {
+            userTickets.set(user.id, []);
+        }
+        userTickets.get(user.id).push(ticketInfo);
+
+        const ticketEmbed = new EmbedBuilder()
+            .setTitle(`${categoryData.name} #${ticketId}`)
+            .setColor(categoryData.color)
+            .setDescription(`**Ticket utworzony przez:** ${user}\n**Kategoria:** ${categoryData.description}`)
+            .addFields(
+                { name: '🆔 ID Ticketu', value: ticketId, inline: true },
+                { name: '👤 Użytkownik', value: user.tag, inline: true },
+                { name: '📅 Utworzony', value: `<t:${Math.floor(Date.now() / 1000)}:R>`, inline: true }
+            )
+            .setFooter({ text: 'BotNexus' })
+            .setTimestamp();
+
+        const closeRow = new ActionRowBuilder()
+            .addComponents(
+                new ButtonBuilder()
+                    .setCustomId(`ticket_close_${ticketId}`)
+                    .setLabel('🔒 Zamknij ticket')
+                    .setStyle(ButtonStyle.Danger)
+            );
+
+        const welcomeMessage = await ticketChannel.send({
+            content: `${user} Witaj w swoim tickecie! Opisz swój problem, a support odpowie jak najszybciej.`,
+            embeds: [ticketEmbed],
+            components: [closeRow]
+        });
+
+        await ticketChannel.send({ content: '📝 **Opisz swoją sprawę:**', components: [] });
+
+        await interaction.reply({ 
+            content: `✅ Ticket utworzony! <#${ticketChannel.id}>`,
             ephemeral: true 
         });
+
+        const logEmbed = new EmbedBuilder()
+            .setTitle('🎫 Nowy Ticket')
+            .setColor(0x57F287)
+            .addFields(
+                { name: '👤 Użytkownik', value: user.tag, inline: true },
+                { name: '📂 Kategoria', value: categoryData.name, inline: true },
+                { name: '🔗 Kanał', value: `<#${ticketChannel.id}>`, inline: true }
+            )
+            .setFooter({ text: `ID: ${ticketId}` })
+            .setTimestamp();
+
+        if (TICKET_LOG_CHANNEL_ID) {
+            const logChannel = guild.channels.cache.get(TICKET_LOG_CHANNEL_ID);
+            if (logChannel) {
+                logChannel.send({ embeds: [logEmbed] }).catch(err => {
+                    console.error('❌ Błąd wysyłania logów ticketów:', err);
+                });
+            }
+        }
+
+    } catch (error) {
+        console.error('❌ Błąd tworzenia ticketu:', error);
+        
+        const errorMessage = error.message || 'Nieznany błąd';
+        
+        try {
+            await interaction.reply({ 
+                content: `❌ Wystąpił błąd podczas tworzenia ticketu!\n\`\`\`${errorMessage}\`\`\``,
+                ephemeral: true 
+            });
+        } catch (e) {
+            console.error('❌ Nie można wysłać wiadomości błędu:', e);
+        }
     }
+}
 
     const ticketId = Date.now().toString(36).toUpperCase();
 
