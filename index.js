@@ -31,7 +31,7 @@ const LOG_CHANNEL_ID = '1479629372158902373';
 const STATUS_CHANNEL_ID = '1479630853054267412';
 
 // Wczytaj config
-import config from './config.json' assert { type: 'json' };
+import config from './config.json' with { type: 'json' };
 const VOICE_CONTROL_CHANNEL = config.voiceControlChannel || '1479630853054267412';
 
 const token = process.env.BOT_TOKEN;
