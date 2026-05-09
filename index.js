@@ -27,8 +27,8 @@ dotenv.config();
 // KONFIGURACJA
 // ===========================
 const PREFIX = '!'; // Prefix komend
-const LOG_CHANNEL_ID = '1479629372158902373';
-const STATUS_CHANNEL_ID = '1479630853054267412';
+const LOG_CHANNEL_ID = '1499838771548651687';
+const STATUS_CHANNEL_ID = '1502637789684957256';
 
 // Wczytaj config
 import config from './config.json' with { type: 'json' };

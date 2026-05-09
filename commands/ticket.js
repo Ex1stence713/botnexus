@@ -1,7 +1,20 @@
 import { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, PermissionFlagsBits, Colors } from 'discord.js';
+import config from '../config.json' with { type: 'json' };
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const TICKET_CATEGORY_ID = '1487725516810354718';
 const SUPPORT_ROLE_ID = '1463651990331457546';
+const TICKET_CHANNEL_PREFIX = 'ticket-';
+
+// ID kanału ticketów z configu (można zmienić komendą)
+let TICKET_CHANNEL_ID = config.ticketChannelId || null;
+// ID kanału logów ticketów z configu
+let TICKET_LOG_CHANNEL_ID = config.ticketLogChannelId || null;
 
 const ticketCategories = {
     'support': { name: '📞 Support', color: 0x3498DB, description: 'Ogólne problemy i pytania' },
@@ -22,6 +35,10 @@ export async function execute(message, args) {
         return showTicketPanel(message);
     }
 
+    if (args[0] === 'send' && args[1]) {
+        return sendTicketPanel(message, args[1]);
+    }
+
     if (args[0] === 'close' && args[1]) {
         return closeTicket(message, args[1]);
     }
@@ -30,7 +47,23 @@ export async function execute(message, args) {
         return listTickets(message);
     }
 
-    return message.reply('Dostępne komendy ticket:\n- !ticket - panel wyboru\n- !ticket list - lista twoich ticketów\n- !ticket close <id> - zamknij ticket');
+    if (args[0] === 'uptime' || args[0] === 'stats') {
+        return showBotStats(message);
+    }
+
+    if (args[0] === 'channel' && args[1]) {
+        return setTicketChannel(message, args[1]);
+    }
+
+    if (args[0] === 'logchannel' && args[1]) {
+        return setLogChannel(message, args[1]);
+    }
+
+    if (args[0] === 'config') {
+        return showConfig(message);
+    }
+
+    return message.reply('Dostępne komendy ticket:\n- !ticket - panel wyboru\n- !ticket send <#kanał> - wyślij panel na kanał\n- !ticket list - lista twoich ticketów\n- !ticket close <id> - zamknij ticket\n- !ticket uptime - statystyki bota\n- !ticket channel <#kanał> - ustaw kanał ticketów\n- !ticket logchannel <#kanał> - ustaw kanał logów ticketów\n- !ticket config - pokaż aktualną konfigurację');
 }
 
 async function showTicketPanel(message) {
@@ -167,9 +200,11 @@ export async function handleTicketButton(interaction) {
         .setFooter({ text: `ID: ${ticketId}` })
         .setTimestamp();
 
-    const logChannel = guild.channels.cache.find(ch => ch.name === 'ticket-log');
-    if (logChannel) {
-        logChannel.send({ embeds: [logEmbed] });
+    if (TICKET_LOG_CHANNEL_ID) {
+        const logChannel = guild.channels.cache.get(TICKET_LOG_CHANNEL_ID);
+        if (logChannel) {
+            logChannel.send({ embeds: [logEmbed] }).catch(() => {});
+        }
     }
 }
 
@@ -234,6 +269,198 @@ async function closeTicketById(interaction, ticket, ownerId) {
     }
 
     await interaction.reply({ content: 'Ticket został zamknięty!', ephemeral: true });
+}
+
+async function showBotStats(message) {
+    const client = message.client;
+    const uptimeMs = client.uptime;
+    const days = Math.floor(uptimeMs / 86400000);
+    const hours = Math.floor((uptimeMs % 86400000) / 3600000);
+    const mins = Math.floor((uptimeMs % 3600000) / 60000);
+    const ping = client.ws.ping;
+
+    // Kolor zależny od pingu
+    let statusColor = 0x2ecc71; // zielony
+    let statusEmoji = '🟢';
+    let statusText = 'Online';
+    if (ping >= 200) {
+        statusColor = 0xe74c3c;
+        statusEmoji = '🔴';
+        statusText = '⚠️ Lag';
+    } else if (ping >= 150) {
+        statusColor = 0xf39c12;
+        statusEmoji = '🟠';
+        statusText = '🟡 Online';
+    } else if (ping >= 100) {
+        statusColor = 0xf1c40f;
+        statusEmoji = '🟡';
+        statusText = 'Online';
+    }
+
+    // Format uptime
+    const uptimeStr = days > 0
+        ? `${days}d ${hours}h ${mins}m`
+        : `${hours}h ${mins}m`;
+
+    // Statystyki
+    const guilds = client.guilds.cache.size;
+    const users = client.users.cache.size;
+    const channels = client.channels.cache.size;
+
+    // Największy serwer
+    let biggestGuild = 'Brak';
+    let biggestGuildMembers = 0;
+    client.guilds.cache.forEach(g => {
+        if (g.memberCount > biggestGuildMembers) {
+            biggestGuildMembers = g.memberCount;
+            biggestGuild = g.name;
+        }
+    });
+
+    const embed = new EmbedBuilder()
+        .setTitle(`${statusEmoji} Status Bota - Nexus`)
+        .setColor(statusColor)
+        .setThumbnail(client.user.displayAvatarURL({ size: 256 }))
+        .setDescription(`**${statusText}** | Wersja: 1.0.0`)
+        .addFields(
+            { name: `${statusEmoji} Status`, value: `\`${statusText}\``, inline: true },
+            { name: '📡 Ping', value: `\`${ping}ms\``, inline: true },
+            { name: '⏱️ Uptime', value: `\`${uptimeStr}\``, inline: true },
+            { name: '─────────────────', value: '**📊 Statystyki:**', inline: false },
+            { name: '🏢 Serwery', value: `\`${guilds}\``, inline: true },
+            { name: '👥 Użytkownicy', value: `\`${users}\``, inline: true },
+            { name: '💬 Kanały', value: `\`${channels}\``, inline: true },
+            { name: '👑 Największy serwer', value: `\`${biggestGuild}\` (${biggestGuildMembers} członków)`, inline: false }
+        )
+        .setFooter({
+            text: `Nexus Bot • Zaktualizowano: ${new Date().toLocaleString('pl-PL')}`,
+            iconURL: client.user.displayAvatarURL({ size: 32 })
+        })
+        .setTimestamp();
+
+    await message.reply({ embeds: [embed] });
+}
+
+async function setTicketChannel(message, channelArg) {
+    if (!message.member.permissions.has(PermissionFlagsBits.ManageChannels)) {
+        return message.reply('❌ Nie masz uprawnień do tej komendy! Wymagane: `Zarządzanie kanałami`');
+    }
+
+    if (!channelArg) {
+        return message.reply('Podaj kanał! `!ticket channel <#kanał>`');
+    }
+
+    const channelId = channelArg.replace(/<#/, '').replace(/>/g, '');
+    const channel = message.guild.channels.cache.get(channelId);
+
+    if (!channel || channel.type !== ChannelType.GuildText) {
+        return message.reply('Podaj poprawny kanał tekstowy! `!ticket channel <#kanał>`');
+    }
+
+    TICKET_CHANNEL_ID = channelId;
+    config.ticketChannelId = channelId;
+    saveConfig();
+
+    await message.reply(`✅ Ustawiono kanał ticketów na: ${channel}`);
+}
+
+async function setLogChannel(message, channelArg) {
+    if (!message.member.permissions.has(PermissionFlagsBits.ManageChannels)) {
+        return message.reply('❌ Nie masz uprawnień do tej komendy! Wymagane: `Zarządzanie kanałami`');
+    }
+
+    if (!channelArg) {
+        return message.reply('Podaj kanał! `!ticket logchannel <#kanał>`');
+    }
+
+    const channelId = channelArg.replace(/<#/, '').replace(/>/g, '');
+    const channel = message.guild.channels.cache.get(channelId);
+
+    if (!channel || channel.type !== ChannelType.GuildText) {
+        return message.reply('Podaj poprawny kanał tekstowy! `!ticket logchannel <#kanał>`');
+    }
+
+    TICKET_LOG_CHANNEL_ID = channelId;
+    config.ticketLogChannelId = channelId;
+    saveConfig();
+
+    await message.reply(`✅ Ustawiono kanał logów ticketów na: ${channel}`);
+}
+
+function showConfig(message) {
+    const embed = new EmbedBuilder()
+        .setTitle('🎫 Konfiguracja Ticketów')
+        .setColor(0x5865F2)
+        .addFields(
+            { name: '📺 Kanał ticketów', value: TICKET_CHANNEL_ID ? `<#${TICKET_CHANNEL_ID}>` : 'Nie ustawiony', inline: true },
+            { name: '📋 Kanał logów', value: TICKET_LOG_CHANNEL_ID ? `<#${TICKET_LOG_CHANNEL_ID}>` : 'Nie ustawiony', inline: true },
+            { name: '📁 Kategoria ticketów', value: `<#${TICKET_CATEGORY_ID}>`, inline: true },
+            { name: '👥 Rola supportu', value: `<@&${SUPPORT_ROLE_ID}>`, inline: true }
+        )
+        .setFooter({ text: 'BotNexus' })
+        .setTimestamp();
+
+    message.reply({ embeds: [embed] });
+}
+
+function saveConfig() {
+    try {
+        const configPath = path.join(__dirname, '..', 'config.json');
+        fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+    } catch (err) {
+        console.error('❌ Błąd zapisywania config.json:', err);
+    }
+}
+
+async function sendTicketPanel(message, channelArg) {
+    // Sprawdź uprawnienia - tylko staff może wysłać panel na inny kanał
+    if (!message.member.permissions.has(PermissionFlagsBits.ManageChannels)) {
+        return message.reply('❌ Nie masz uprawnień do tej komendy! Wymagane: `Zarządzanie kanałami`');
+    }
+
+    if (!channelArg) {
+        return message.reply('Podaj kanał! `!ticket send <#kanał>`');
+    }
+
+    // Wyodrębnij ID kanału z mention lub bezpośredniego ID
+    const channelId = channelArg.replace(/<#/, '').replace(/>/g, '');
+    const channel = message.guild.channels.cache.get(channelId);
+
+    if (!channel || channel.type !== ChannelType.GuildText) {
+        return message.reply('Podaj poprawny kanał tekstowy! `!ticket send <#kanał>`');
+    }
+
+    await showTicketPanelToChannel(channel);
+    await message.reply(`✅ Panel ticketów został wysłany na kanał ${channel}`);
+}
+
+async function showTicketPanelToChannel(targetChannel) {
+    const embed = new EmbedBuilder()
+        .setTitle('🎫 System Ticketów')
+        .setColor(0x5865F2)
+        .setDescription('Wybierz kategorię ticketu, a my utworzymy dedykowany kanał dla Ciebie.')
+        .addFields(
+            { name: '📞 Support', value: 'Ogólne problemy i pytania', inline: true },
+            { name: '🐛 Zgłoszenie błędu', value: 'Błędy i problemy techniczne', inline: true },
+            { name: '💡 Sugestia', value: 'Propozycje i pomysły', inline: true },
+            { name: '⚠️ Zgłoszenie', value: 'Zgłoszenie użytkownika lub treści', inline: true },
+            { name: '🤝 Partnerstwo', value: 'Pytania o współpracę', inline: true }
+        )
+        .setFooter({ text: 'BotNexus • Kliknij przycisk poniżej' })
+        .setTimestamp();
+
+    const row = new ActionRowBuilder();
+
+    Object.keys(ticketCategories).forEach(key => {
+        row.addComponents(
+            new ButtonBuilder()
+                .setCustomId(`ticket_${key}`)
+                .setLabel(ticketCategories[key].name)
+                .setStyle(ButtonStyle.Primary)
+        );
+    });
+
+    await targetChannel.send({ embeds: [embed], components: [row] });
 }
 
 async function listTickets(message) {

@@ -2,5 +2,7 @@
   "clientId": "1233177741063356447",
   "guildId": "1463630780692697200",
   "ownerId": "1429200318352330785",
-  "voiceControlChannel": "1483594347810127962"
+  "voiceControlChannel": "1483594347810127962",
+  "ticketChannelId": null,
+  "ticketLogChannelId": null
 }
