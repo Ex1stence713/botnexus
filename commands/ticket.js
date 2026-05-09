@@ -1,5 +1,4 @@
 import { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, PermissionFlagsBits, Colors } from 'discord.js';
-import config from '../config.json' with { type: 'json' };
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -7,14 +6,28 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Wczytaj config
+function loadConfig() {
+    try {
+        const configPath = path.join(__dirname, '..', 'config.json');
+        const data = fs.readFileSync(configPath, 'utf8');
+        return JSON.parse(data);
+    } catch (err) {
+        console.error('❌ Błąd ładowania config.json:', err);
+        return {};
+    }
+}
+
+const config = loadConfig();
+
 const TICKET_CATEGORY_ID = '1487725516810354718';
 const SUPPORT_ROLE_ID = '1463651990331457546';
 const TICKET_CHANNEL_PREFIX = 'ticket-';
 
 // ID kanału ticketów z configu (można zmienić komendą)
-let TICKET_CHANNEL_ID = config.ticketChannelId || null;
+let TICKET_CHANNEL_ID = "1499838770365599938" || null;
 // ID kanału logów ticketów z configu
-let TICKET_LOG_CHANNEL_ID = config.ticketLogChannelId || null;
+let TICKET_LOG_CHANNEL_ID = "1499838771548651689" || null;
 
 const ticketCategories = {
     'support': { name: '📞 Support', color: 0x3498DB, description: 'Ogólne problemy i pytania' },
@@ -25,6 +38,9 @@ const ticketCategories = {
 };
 
 const userTickets = new Map();
+
+export const name = 'ticket';
+export const description = 'System ticketów - tworzenie i zarządzanie';
 
 export async function execute(message, args) {
     if (args.length === 0) {
