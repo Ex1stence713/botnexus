@@ -351,272 +351,31 @@ async function updatePublicStatus() {
             if (guild.memberCount > biggestGuildMembers) {
                 biggestGuildMembers = guild.memberCount;
                 biggestGuild = guild.name;
-            }
-        });
-
-        const embed = new EmbedBuilder()
-            .setTitle(`${statusEmoji} Status Bota - Nexus`)
-            .setColor(statusColor)
-            .setThumbnail(client.user.displayAvatarURL({ size: 256 }))
-            .setDescription(`**${statusText}** | Wersja: 1.0.0`)
-            .addFields(
-                { name: `${statusEmoji} Status`, value: `\`${statusText}\``, inline: true },
-                { name: '📡 Ping', value: `\`${ping}ms\` ${pingBar}`, inline: true },
-                { name: '⏱️ Uptime', value: `\`${uptimeStr}\`
-${uptimeBar}`, inline: true },
-                { name: '─────────────────', value: '**📊 Statystyki:**', inline: false },
-                { name: '🏢 Serwery', value: `\`${guilds}\``, inline: true },
-                { name: '👥 Użytkownicy', value: `\`${users}\``, inline: true },
-                { name: '💬 Kanały', value: `\`${channels}\``, inline: true },
-                { name: '👑 Największy serwer', value: `\`${biggestGuild}\` (${biggestGuildMembers} członków)`, inline: false }
-            )
-            .setFooter({ 
-                text: `Nexus Bot • Zaktualizowano: ${new Date().toLocaleString('pl-PL')}`,
-                iconURL: client.user.displayAvatarURL({ size: 32 })
-            })
-            .setTimestamp();
-
-        const messages = await channel.messages.fetch({ limit: 10 });
-        const botMsg = messages.find(m => m.author.id === client.user.id);
-
-        if (botMsg) {
-            await botMsg.edit({ embeds: [embed] });
-        } else {
-            await channel.send({ embeds: [embed] });
-        }
-
-    } catch (err) {
-
-        console.error('❌ Błąd statusu', err);
-
-    }
-
-}
-
-// ===========================
-// LOGI
-// ===========================
-async function sendLog(embed) {
-
-    try {
-
-        const channel = await client.channels.fetch(LOG_CHANNEL_ID).catch(() => null);
-        if (!channel) return;
-
-        channel.send({ embeds: [embed] });
-
-    } catch {}
-
-}
-
-// ===========================
-// EVENTY - messageDelete
-// ===========================
-client.on('messageDelete', (m) => {
-
-    if (m.author?.bot) return;
-
-    const embed = new EmbedBuilder()
-        .setTitle('🗑️ Wiadomość usunięta')
-        .setColor('Red')
-        .addFields(
-            { name: 'Autor', value: m.author?.tag || 'Nieznany', inline: true },
-            { name: 'Kanał', value: `${m.channel}`, inline: true },
-            { name: 'Treść', value: m.content || 'Embed / plik' }
-        )
-        .setTimestamp();
-
-    sendLog(embed);
-
-});
-
-// ===========================
-// PARTNERSTWO - AUTO DETEKCJA I ODPOWIEDŹ
-// ===========================
-client.on('messageCreate', async (message) => {
-    // Ignoruj wiadomości od botów
-    if (message.author.bot) return;
-    
-    // Sprawdź czy wiadomość zawiera invite link
-    const hasInvite = inviteRegex.test(message.content);
-    
-    // Reset regex lastIndex
-    inviteRegex.lastIndex = 0;
-    
-    if (hasInvite) {
-        // Dodaj partnership
-        addPartnership(message.author.id, message.author.tag);
-        
-        // Pobierz statystyki
-        const count = getUserPartnershipCount(message.author.id);
-        const ranking = getUserRanking(message.author.id);
-        
-        // Wyślij odpowiedź
-        const embed = new EmbedBuilder()
-            .setTitle('🤝 Dziękujemy za partnerstwo!')
-            .setColor('#5865F2')
-            .setDescription(`Dziękujemy za polecenie serwera, ${message.author}! 🎉`)
-            .addFields(
-                { name: 'Twoja ilość partnerstw', value: `${count}`, inline: true },
-                { name: 'Twój ranking', value: `#${ranking}`, inline: true }
-            )
-            .setTimestamp();
-        
-        await message.reply({ embeds: [embed] });
-        
-        // Loguj partnership
-        const logEmbed = new EmbedBuilder()
-            .setTitle('🤝 Nowe partnerstwo')
-            .setColor('Green')
-            .addFields(
-                { name: 'Użytkownik', value: message.author.tag, inline: true },
-                { name: 'Ilość', value: `${count}`, inline: true },
-                { name: 'Kanał', value: `${message.channel}`, inline: true }
-            )
-            .setTimestamp();
-        
-        sendLog(logEmbed);
-    }
-    
-    // ===========================
-    // AUTOMOD - FILTR SŁÓW I ZAPROSZEŃ
-    // ===========================
-    const automod = loadAutomodConfig();
-    
-    // Sprawdź czy automod jest włączony
-    if (!automod.enabled) return;
-    
-    // Sprawdź ignorowane kanały i role
-    if (isIgnoredChannel(message, automod)) return;
-    if (hasIgnoredRole(message, automod)) return;
-    
-    // Sprawdź czy wiadomość zawiera invite link
-    inviteRegex.lastIndex = 0;
-    const hasInviteLink = inviteRegex.test(message.content);
-    
-    // Anti-Invite: usuń wiadomość z zaproszeniem
-    if (hasInviteLink && automod.antiInvite) {
-        if (automod.deleteInviteMessage) {
-            try {
-                await message.delete();
-                
-                const warnEmbed = new EmbedBuilder()
-                    .setTitle('⚠️ Zaproszenia są zabronione')
-                    .setColor('Red')
-                    .setDescription(`${message.author}, nie wolno publikować linków do innych serwerów!`)
-                    .setFooter({ text: 'Zaproszenie zostało usunięte' });
-                
-                await message.channel.send({ embeds: [warnEmbed] }).then(msg => {
-                    setTimeout(() => msg.delete().catch(() => {}), 5000);
-                });
-                
-                // Loguj
-                const logEmbed = new EmbedBuilder()
-                    .setTitle('🛡️ Usunięto zaproszenie')
-                    .setColor('Orange')
-                    .addFields(
-                        { name: 'Użytkownik', value: message.author.tag, inline: true },
-                        { name: 'Kanał', value: `${message.channel}`, inline: true }
-                    )
-                    .setTimestamp();
-                sendLog(logEmbed);
-                
-            } catch (err) {
-                console.error('❌ Błąd usuwania zaproszenia:', err);
-            }
-        }
-        return; // Przerwij bo wiadomość została usunięta
-    }
-    
-    // Filtr słów: sprawdź złe słowa
-    if (containsBadWords(message, automod)) {
-        if (automod.deleteBadMessage) {
-            try {
-                await message.delete();
-                
-                const warnEmbed = new EmbedBuilder()
-                    .setTitle('⚠️ Niedozwolone słowo')
-                    .setColor('Red')
-                    .setDescription(`${message.author}, Twoja wiadomość zawiera niedozwolone słowa!`)
-                    .setFooter({ text: 'Wiadomość została usunięta' });
-                
-                await message.channel.send({ embeds: [warnEmbed] }).then(msg => {
-                    setTimeout(() => msg.delete().catch(() => {}), 5000);
-                });
-                
-                // Loguj
-                const logEmbed = new EmbedBuilder()
-                    .setTitle('🛡️ Usunięto wiadomość (złe słowo)')
-                    .setColor('Red')
-                    .addFields(
-                        { name: 'Użytkownik', value: message.author.tag, inline: true },
-                        { name: 'Kanał', value: `${message.channel}`, inline: true }
-                    )
-                    .setTimestamp();
-                sendLog(logEmbed);
-                
-            } catch (err) {
-                console.error('❌ Błąd usuwania wiadomości:', err);
-            }
-        }
     }
 });
 
 // ===========================
-// START
+// KOMENDY PREFIX (!) - OBSŁUGA
 // ===========================
-client.once('ready', async () => {
-
-    console.log(`🚀 Zalogowano jako ${client.user.tag}`);
-
-    client.user.setPresence({
-        activities: [{ name: `${PREFIX}pomoc`, type: ActivityType.Listening }],
-        status: 'online'
-    });
-
-    updatePublicStatus();
-    setInterval(updatePublicStatus, 60000);
+client.on('messageCreate', async message => {
+    // Ignoruj boty i DM
+    if (message.author.bot || !message.guild) return;
     
-    // Setup autokanały
-    setupVoiceEvents(client);
-    setControlChannel(VOICE_CONTROL_CHANNEL);
-    
-    // Uruchom auto-trivia
-    startAutoTrivia(client);
-
-});
-
-// ===========================
-// INTERAKCJE - PREFIX COMMANDS
-// ===========================
-client.on('messageCreate', async (message) => {
-    // Ignoruj wiadomości od botów
-    if (message.author.bot) return;
-    
-    // Sprawdź czy wiadomość zaczyna się od prefixu
+    // Sprawdź prefix
     if (!message.content.startsWith(PREFIX)) return;
     
-    // Usuń prefix i pobierz argumenty
-    const args = message.content.slice(PREFIX.length).trim().split(/\s+/);
+    const args = message.content.slice(PREFIX.length).trim().split(/ +/);
     const commandName = args.shift().toLowerCase();
     
-    // Znajdź komendę
     const command = client.commands.get(commandName);
     if (!command) return;
-    
-    // Sprawdź czy komenda ma poprawną strukturę prefix
-    if (!command.execute) {
-        console.log(`❌ Komenda ${commandName} nie ma funkcji execute`);
-        return;
-    }
     
     try {
         await command.execute(message, args);
     } catch (err) {
-        console.error(`❌ Błąd wykonania komendy ${commandName}:`, err);
-        
+        console.error(`❌ Błąd komendy ${commandName}:`, err);
         try {
-            await message.reply('❌ Wystąpił błąd podczas wykonania tej komendy.');
+            await message.reply('❌ Wystąpił błąd podczas wykonania komendy.');
         } catch (e) {
             console.error('❌ Nie można wysłać wiadomości błędu:', e);
         }
@@ -624,259 +383,26 @@ client.on('messageCreate', async (message) => {
 });
 
 // ===========================
-// INTERAKCJE - SLASH COMMANDS (opcjonalne, wyłączone)
-// ===========================
-client.on('interactionCreate', async interaction => {
-
-    if (!interaction.isChatInputCommand()) return;
-
-    const command = client.commands.get(interaction.commandName);
-    if (!command) {
-        console.log(`❌ Komenda ${interaction.commandName} nie została znaleziona`);
-        return;
-    }
-
-    try {
-        await command.execute(interaction);
-    } catch (err) {
-        console.error(`❌ Błąd wykonania komendy ${interaction.commandName}:`, err);
-        
-        try {
-            if (interaction.replied || interaction.deferred) {
-                await interaction.followUp({ content: '❌ Wystąpił błąd podczas wykonania tej komendy.', ephemeral: true });
-            } else {
-                await interaction.reply({ content: '❌ Wystąpił błąd podczas wykonania tej komendy.', ephemeral: true });
-            }
-        } catch (e) {
-            console.error('❌ Nie można wysłać wiadomości błędu:', e);
-        }
-    }
-
-});
-
-// ===========================
-// INTERAKCJE - BUTTONY (weryfikacja)
-// ===========================
-client.on('interactionCreate', async interaction => {
-    if (!interaction.isButton()) return;
-    
-    if (interaction.customId === 'verify_button') {
-        try {
-            // Importuj konfigurację weryfikacji
-            const { loadVerificationConfig, saveVerificationConfig, generateCaptcha } = await import('./commands/weryfikacja.js');
-            const config = await loadVerificationConfig();
-            
-            if (!config.enabled) {
-                return interaction.reply({ content: '❌ System weryfikacji jest wyłączony!', ephemeral: true });
-            }
-            
-            const { guild, user, member } = interaction;
-            
-            // Sprawdź czy użytkownik jest już zweryfikowany
-            if (config.verifiedUsers[user.id]) {
-                return interaction.reply({ content: '✅ Jesteś już zweryfikowany!', ephemeral: true });
-            }
-            
-            // Sprawdź cooldown
-            const lastAttempt = config.verifiedUsers[user.id]?.lastAttempt || 0;
-            const cooldownEnd = lastAttempt + (config.verificationCooldown * 1000);
-            if (Date.now() < cooldownEnd) {
-                const remaining = Math.ceil((cooldownEnd - Date.now()) / 1000);
-                return interaction.reply({ content: `⏰ Poczekaj ${remaining} sekund przed kolejną próbą!`, ephemeral: true });
-            }
-            
-            // Sprawdź max prób
-            const attempts = config.verifiedUsers[user.id]?.attempts || 0;
-            if (attempts >= config.maxAttempts) {
-                return interaction.reply({ content: `❌ Przekroczono maksymalną liczbę prób (${config.maxAttempts})! Skontaktuj się z administratorem.`, ephemeral: true });
-            }
-            
-            // Jeśli wymagana CAPTCHA
-            if (config.requireCaptcha) {
-                const captcha = generateCaptcha(config.captchaDifficulty);
-                
-                // Zapisz CAPTCHA tymczasowo
-                if (!config.verifiedUsers[user.id]) {
-                    config.verifiedUsers[user.id] = {};
-                }
-                config.verifiedUsers[user.id].captcha = captcha;
-                config.verifiedUsers[user.id].lastAttempt = Date.now();
-                config.verifiedUsers[user.id].attempts = (config.verifiedUsers[user.id].attempts || 0) + 1;
-                await saveVerificationConfig(config);
-                
-                // Utwórz modal z CAPTCHA
-                const modal = new ModalBuilder()
-                    .setCustomId('verify_captcha_modal')
-                    .setTitle('Weryfikacja CAPTCHA');
-                
-                const captchaInput = new TextInputBuilder()
-                    .setCustomId('captcha_input')
-                    .setLabel(`Wpisz kod: ${captcha}`)
-                    .setStyle(TextInputStyle.Short)
-                    .setRequired(true);
-                
-                const firstActionRow = new ActionRowBuilder().addComponents(captchaInput);
-                modal.addComponents(firstActionRow);
-                
-                return interaction.showModal(modal);
-            }
-            
-            // Bez CAPTCHA - od razu weryfikuj
-            await verifyUser(interaction, config);
-            
-        } catch (error) {
-            console.error('[Weryfikacja] Błąd:', error);
-            return interaction.reply({ content: '❌ Wystąpił błąd podczas weryfikacji!', ephemeral: true });
-        }
-    }
-
-    // Obsługa przycisków ticketów
-    if (interaction.customId.startsWith('ticket_')) {
-        try {
-            const { handleTicketButton, handleTicketCloseButton } = await import('./commands/ticket.js');
-            
-            if (interaction.customId.startsWith('ticket_close_')) {
-                await handleTicketCloseButton(interaction);
-            } else if (interaction.customId.startsWith('ticket_')) {
-                await handleTicketButton(interaction);
-            }
-        } catch (error) {
-            console.error('[Ticket] Błąd:', error);
-            return interaction.reply({ content: '❌ Wystąpił błąd podczas tworzenia ticketu!', ephemeral: true });
-        }
-        return;
-    }
-});
-
-// ===========================
-// INTERAKCJE - MODALE (weryfikacja CAPTCHA)
-// ===========================
-client.on('interactionCreate', async interaction => {
-    if (!interaction.isModalSubmit()) return;
-    
-    if (interaction.customId === 'verify_captcha_modal') {
-        try {
-            const { loadVerificationConfig, saveVerificationConfig } = await import('./commands/weryfikacja.js');
-            const config = await loadVerificationConfig();
-            
-            const { user, guild } = interaction;
-            const captchaInput = interaction.fields.getTextInputValue('captcha_input');
-            
-            // Sprawdź CAPTCHA
-            const userCaptcha = config.verifiedUsers[user.id]?.captcha;
-            if (!userCaptcha || captchaInput !== userCaptcha) {
-                // Zwiększ liczbę prób
-                if (!config.verifiedUsers[user.id]) {
-                    config.verifiedUsers[user.id] = {};
-                }
-                config.verifiedUsers[user.id].attempts = (config.verifiedUsers[user.id].attempts || 0) + 1;
-                config.verifiedUsers[user.id].lastAttempt = Date.now();
-                await saveVerificationConfig(config);
-                
-                const remaining = config.maxAttempts - config.verifiedUsers[user.id].attempts;
-                return interaction.reply({ content: `❌ Nieprawidłowy kod CAPTCHA! Pozostało prób: ${remaining}`, ephemeral: true });
-            }
-            
-            // CAPTCHA poprawna - weryfikuj użytkownika
-            await verifyUser(interaction, config);
-            
-        } catch (error) {
-            console.error('[Weryfikacja CAPTCHA] Błąd:', error);
-            return interaction.reply({ content: '❌ Wystąpił błąd podczas weryfikacji!', ephemeral: true });
-        }
-    }
-});
-
-// Funkcja weryfikacji użytkownika
-async function verifyUser(interaction, config) {
-    const { guild, user, member } = interaction;
-    
-    try {
-        // Pobierz rolę zweryfikowanych
-        const verifiedRole = guild.roles.cache.get(config.verifiedRoleId);
-        if (!verifiedRole) {
-            return interaction.reply({ content: '❌ Rola zweryfikowanych nie istnieje!', ephemeral: true });
-        }
-        
-        // Sprawdź hierarchię ról
-        if (guild.members.me.roles.highest.position <= verifiedRole.position) {
-            return interaction.reply({ content: '❌ Bot nie może nadać tej roli!', ephemeral: true });
-        }
-        
-        // Nadaj rolę
-        await member.roles.add(verifiedRole);
-        
-        // Zapisz weryfikację
-        config.verifiedUsers[user.id] = {
-            verifiedAt: Date.now(),
-            username: user.tag
-        };
-        await saveVerificationConfig(config);
-        
-        // Odpowiedz użytkownikowi
-        const successEmbed = new EmbedBuilder()
-            .setTitle('✅ Weryfikacja zakończona!')
-            .setDescription(`Pomyślnie zweryfikowano! Rola ${verifiedRole} została nadana.`)
-            .setColor(0x57F287)
-            .setTimestamp();
-        
-        await interaction.reply({ embeds: [successEmbed], ephemeral: true });
-        
-        // Loguj weryfikację
-        if (config.logChannelId) {
-            const logChannel = guild.channels.cache.get(config.logChannelId);
-            if (logChannel) {
-                const logEmbed = new EmbedBuilder()
-                    .setTitle('🔐 Nowa weryfikacja')
-                    .setColor(0x57F287)
-                    .addFields(
-                        { name: 'Użytkownik', value: user.tag, inline: true },
-                        { name: 'ID', value: user.id, inline: true },
-                        { name: 'Data', value: new Date().toLocaleString('pl-PL'), inline: true }
-                    )
-                    .setTimestamp();
-                
-                logChannel.send({ embeds: [logEmbed] }).catch(() => {});
-            }
-        }
-        
-    } catch (error) {
-        console.error('[Weryfikacja] Błąd nadawania roli:', error);
-        return interaction.reply({ content: '❌ Wystąpił błąd podczas nadawania roli!', ephemeral: true });
-    }
-}
-
-// ===========================
-// INIT
+// INIT - ŁADOWANIE KOMEND
 // ===========================
 (async () => {
-
-    await loadCommands();
-
-    // ===========================
-    // ŁADOWANIE EVENTÓW
-    // ===========================
-    const eventsPath = path.join(__dirname, 'events');
-    
-    if (fs.existsSync(eventsPath)) {
-        const eventFiles = fs.readdirSync(eventsPath).filter(f => f.endsWith('.js'));
+    try {
+        console.log('🔄 Ładowanie komend...');
+        const { commandsJSON, loadedNames } = await loadCommands();
         
-        for (const file of eventFiles) {
-            const filePath = pathToFileURL(path.join(eventsPath, file)).href;
-            const event = await import(filePath);
-            const evt = event.default || event;
-            
-            if (evt.name && evt.execute) {
-                if (evt.once) {
-                    client.once(evt.name, evt.execute);
-                } else {
-                    client.on(evt.name, evt.execute);
-                }
-                console.log(`✅ Załadowano event: ${evt.name}`);
-            }
+        console.log(`✅ Załadowano komendy: ${loadedNames.join(', ')}`);
+        
+        // Rejestruj tylko komendy slash (jeśli są)
+        if (commandsJSON.length > 0) {
+            await registerCommands(commandsJSON);
         }
+        
+        console.log('✅ Bot gotowy do użycia!');
+    } catch (err) {
+        console.error('❌ Błąd inicjalizacji:', err);
     }
+})();
 
-    client.login(token);
+client.login(token);
 
 })();

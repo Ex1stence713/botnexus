@@ -4,6 +4,8 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import db from '../database.js';
 
+console.log('✅ commands/ticket.js loaded');
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -397,6 +399,30 @@ export async function execute(message, args) {
         return setPriorityCommand(message, args[1], args[2]);
     }
 
+    if (args[0] === 'tag' && args[1] === 'add' && args[2] && args[3]) {
+        return addTagCommand(message, args[2], args[3]);
+    }
+    
+    if (args[0] === 'tag' && args[1] === 'remove' && args[2] && args[3]) {
+        return removeTagCommand(message, args[2], args[3]);
+    }
+
+    if (args[0] === 'quick' && args[1]) {
+        return sendQuickResponseCommand(message, args[1]);
+    }
+
+    if (args[0] === 'transfercat' && args[1] && args[2]) {
+        return transferTicketCategory(message, args[1], args[2]);
+    }
+
+    if (args[0] === 'export') {
+        return exportTicketsCommand(message);
+    }
+
+    if (args[0] === 'cooldown') {
+        return checkUserCooldownCommand(message, message.author.id);
+    }
+
     if (args[0] === 'staff') {
         return showStaffStats(message);
     }
@@ -405,7 +431,7 @@ export async function execute(message, args) {
         return runAutoClose(message, args[1]);
     }
 
-    return message.reply('Dostępne komendy ticket:\n- !ticket - panel wyboru\n- !ticket send <#kanał> - wyślij panel na kanał\n- !ticket list - lista twoich ticketów\n- !ticket close <id> - zamknij ticket\n- !ticket note <id> <treść> - dodaj notatkę do ticketu\n- !ticket priority <id> <0-3> - zmień priorytet (0=Krytyczny, 3=Niski)\n- !ticket staff - statystyki personelu\n- !ticket autoclose <guild_id> - ręczne auto-close (admin)\n- !ticket uptime - statystyki bota\n- !ticket channel <#kanał> - ustaw kanał ticketów\n- !ticket logchannel <#kanał> - ustaw kanał logów ticketów\n- !ticket config - pokaż aktualną konfigurację');
+    return message.reply('Dostępne komendy ticket:\n- !ticket - panel wyboru\n- !ticket send <#kanał> - wyślij panel na kanał\n- !ticket list - lista twoich ticketów\n- !ticket close <id> - zamknij ticket\n- !ticket note <id> <treść> - dodaj notatkę do ticketu\n- !ticket priority <id> <0-3> - zmień priorytet (0=Krytyczny, 3=Niski)\n- !ticket tag add <id> <tag> - dodaj tag\n- !ticket tag remove <id> <tag> - usuń tag\n- !ticket quick <id> - szybka odpowiedź\n- !ticket transfercat <id> <kategoria> - zmień kategorię\n- !ticket export - eksport CSV (admin)\n- !ticket cooldown - sprawdź cooldown\n- !ticket staff - statystyki personelu\n- !ticket autoclose <guild_id> - ręczne auto-close (admin)\n- !ticket uptime - statystyki bota\n- !ticket channel <#kanał> - ustaw kanał ticketów\n- !ticket logchannel <#kanał> - ustaw kanał logów ticketów\n- !ticket config - pokaż aktualną konfigurację');
 }
 
 async function showTicketPanel(message) {
@@ -439,7 +465,33 @@ async function showTicketPanel(message) {
 
 export async function handleTicketButton(interaction) {
     try {
-        const category = interaction.customId.replace('ticket_', '');
+        const customId = interaction.customId;
+        
+        // Dispatch do odpowiednich handlerów
+        if (customId.startsWith('ticket_claim_')) {
+            return handleTicketClaimButton(interaction);
+        }
+        if (customId.startsWith('ticket_transfer_')) {
+            return handleTicketTransferButton(interaction);
+        }
+        if (customId.startsWith('ticket_note_')) {
+            return handleTicketNoteButton(interaction);
+        }
+        if (customId.startsWith('ticket_priority_')) {
+            return handleTicketPriorityButton(interaction);
+        }
+        if (customId.startsWith('ticket_tags_')) {
+            return handleTicketTagsButton(interaction);
+        }
+        if (customId.startsWith('ticket_quick_')) {
+            return handleQuickResponseButton(interaction);
+        }
+        if (customId.startsWith('ticket_transfercat_')) {
+            return handleTicketTransferCategoryButton(interaction);
+        }
+        
+        // Stare przyciski tworzenia ticketu (kategorie)
+        const category = customId.replace('ticket_', '');
         const categoryData = ticketCategories[category];
 
         if (!categoryData) {
@@ -451,6 +503,15 @@ export async function handleTicketButton(interaction) {
 
         const guild = interaction.guild;
         const user = interaction.user;
+
+        // Sprawdź cooldown
+        const cooldown = checkUserCooldown(user.id);
+        if (!cooldown.allowed) {
+            return interaction.reply({ 
+                content: `⏳ Musisz poczekać jeszcze **${cooldown.remaining} minut** przed utworzeniem nowego ticketu.`,
+                ephemeral: true 
+            });
+        }
 
         const existingTickets = getUserTickets(user.id, guild.id);
         const userTicketCount = existingTickets.length;
@@ -507,11 +568,19 @@ export async function handleTicketButton(interaction) {
         };
 
         createTicket(ticketInfo);
-
+        
+        // Ustaw cooldown na 10 minut
+        setUserCooldown(user.id, 10);
+        
         // Spróbuj auto-claim jeśli jest dostępny support
         const availableStaff = await findAvailableSupportMember(guild);
         if (availableStaff) {
             await autoClaimTicket(ticketId, ticketChannel, availableStaff);
+        }
+
+        // Rozpocznij śledzenie eskalacji (tylko dla ticketów bez auto-claim)
+        if (!availableStaff) {
+            startEscalationTimer(ticketId, ticketChannel, user);
         }
 
         const ticketEmbed = new EmbedBuilder()
@@ -539,13 +608,22 @@ export async function handleTicketButton(interaction) {
                   .setEmoji('👷')
           );
           
-          // Przycisk Transfer
+          // Przycisk Transfer Support
           actionRow.addComponents(
               new ButtonBuilder()
                   .setCustomId(`ticket_transfer_${ticketId}`)
-                  .setLabel('🔄 Przenieś')
+                  .setLabel('🔄 Transfer')
                   .setStyle(ButtonStyle.Secondary)
                   .setEmoji('🔀')
+          );
+          
+          // Przycisk Transfer Category
+          actionRow.addComponents(
+              new ButtonBuilder()
+                  .setCustomId(`ticket_transfercat_${ticketId}`)
+                  .setLabel('📁 Kategoria')
+                  .setStyle(ButtonStyle.Secondary)
+                  .setEmoji('📂')
           );
           
           // Przycisk Note
@@ -555,6 +633,24 @@ export async function handleTicketButton(interaction) {
                   .setLabel('📝 Notatka')
                   .setStyle(ButtonStyle.Secondary)
                   .setEmoji('📌')
+          );
+          
+          // Przycisk Tags
+          actionRow.addComponents(
+              new ButtonBuilder()
+                  .setCustomId(`ticket_tags_${ticketId}`)
+                  .setLabel('🏷️ Tagi')
+                  .setStyle(ButtonStyle.Secondary)
+                  .setEmoji('🏷️')
+          );
+
+          // Przycisk Quick Response
+          actionRow.addComponents(
+              new ButtonBuilder()
+                  .setCustomId(`ticket_quick_${ticketId}`)
+                  .setLabel('⚡ Quick')
+                  .setStyle(ButtonStyle.Secondary)
+                  .setEmoji('💬')
           );
           
           // Przycisk Priority
@@ -1178,9 +1274,117 @@ function autoCloseInactiveTickets(guild) {
     return closedCount;
 }
 
-export async function handleTicketPriorityButton(interaction) {
+// ========== ESKALACJA TICKETU ==========
+// Czas eskalacji w minutach
+const ESCALATION_TIMES = [15, 30, 60]; // minuty
+const ESCALATION_ROLES = ['1499838769254367391']; // support role ID (można dodać admin role)
+
+function startEscalationTimer(ticketId, channel, creator) {
+    let escalationLevel = 0;
+    
+    const escalationInterval = setInterval(async () => {
+        const ticket = getTicketById(ticketId);
+        if (!ticket || ticket.status === 'closed') {
+            clearInterval(escalationInterval);
+            return;
+        }
+        
+        // Sprawdź czy jest aktywność (ostatnia wiadomość)
+        // Dla prostoty: eskaluj nawet bez aktywności - czas od utworzenia
+        const createdTime = ticket.created_at;
+        const now = Date.now();
+        const minutesSinceCreation = (now - createdTime) / 60000;
+        
+        if (minutesSinceCreation >= ESCALATION_TIMES[escalationLevel]) {
+            await sendEscalationAlert(ticket, channel, escalationLevel, creator);
+            escalationLevel++;
+            
+            if (escalationLevel >= ESCALATION_TIMES.length) {
+                clearInterval(escalationInterval);
+                // Po 60 min - ping adminów lub zablokuj tworzenie ticketów?
+                await sendMaxEscalationAlert(ticket, channel);
+            }
+        }
+    }, 60000); // Sprawdzaj co minutę
+}
+
+async function sendEscalationAlert(ticket, channel, level, creator) {
+    const guild = channel.guild;
+    const supportRole = await guild.roles.fetch(SUPPORT_ROLE_ID).catch(() => null);
+    
+    const levelMessages = [
+        `⏰ **Eskalacja 1/2** - Ticket #${ticket.id} czeka już ${ESCALATION_TIMES[0]} minut!`,
+        `⚠️ **Eskalacja 2/2** - Ticket #${ticket.id} czeka już ${ESCALATION_TIMES[1]} minut!`,
+        `🚨 **MAX ESKALACJA** - Ticket #${ticket.id} czeka już ${ESCALATION_TIMES[2]} minut!`
+    ];
+    
+    const pingMentions = level === 2 ? `@here ${supportRole ? `<@&${supportRole.id}>` : ''}` : (supportRole ? `<@&${supportRole.id}>` : '@here');
+    
+    const embed = new EmbedBuilder()
+        .setTitle('🚨 Eskalacja ticketu')
+        .setColor(level === 2 ? 0xFF0000 : 0xFFA500)
+        .setDescription(levelMessages[level])
+        .addFields(
+            { name: '👤 Użytkownik', value: `<@${ticket.user_id}>`, inline: true },
+            { name: '📂 Kategoria', value: ticketCategories[ticket.category]?.name || ticket.category, inline: true },
+            { name: '⚡ Priorytet', value: formatPriority(ticket.priority), inline: true }
+        )
+        .setFooter({ text: `Escalation Level ${level + 1}/${ESCALATION_TIMES.length}` })
+        .setTimestamp();
+    
     try {
-        const ticketId = interaction.customId.replace('ticket_priority_', '');
+        await channel.send({
+            content: pingMentions,
+            embeds: [embed]
+        });
+        
+        // Log
+        if (TICKET_LOG_CHANNEL_ID) {
+            const logChannel = guild.channels.cache.get(TICKET_LOG_CHANNEL_ID);
+            if (logChannel) {
+                logChannel.send({ 
+                    content: `Eskalacja ticketu #${ticket.id} - poziom ${level + 1}`,
+                    embeds: [embed] 
+                }).catch(() => {});
+            }
+        }
+    } catch (err) {
+        console.error('❌ Błąd eskalacji:', err);
+    }
+}
+
+async function sendMaxEscalationAlert(ticket, channel) {
+    const guild = channel.guild;
+    // Znajdź rolę admina (możesz dodać ID admin role w config)
+    const adminRole = await guild.roles.fetch('1499838769254367391').catch(() => null); // tymczasowo użyj support role
+    
+    const embed = new EmbedBuilder()
+        .setTitle('🚨 MAX ESKALACJA - Ticket potrzebuje natychmiastowej uwagi!')
+        .setColor(0xFF0000)
+        .setDescription(`Ticket #${ticket.id} nie został odpowiedziany przez ${ESCALATION_TIMES[2]} minut!`)
+        .addFields(
+            { name: '👤 Użytkownik', value: `<@${ticket.user_id}>`, inline: true },
+            { name: '📂 Kategoria', value: ticketCategories[ticket.category]?.name || ticket.category, inline: true },
+            { name: '📅 Utworzony', value: `<t:${Math.floor(ticket.created_at / 1000)}:R>`, inline: true }
+        )
+        .setFooter({ text: 'MAX ESCALATION - Action Required!' })
+        .setTimestamp();
+    
+    const ping = adminRole ? `<@&${adminRole.id}>` : '@here';
+    
+    try {
+        await channel.send({
+            content: `${ping} **TICKET W MAX ESKALACJI!**`,
+            embeds: [embed]
+        });
+    } catch (err) {
+        console.error('❌ Błąd max eskalacji:', err);
+    }
+}
+
+export async function handleTicketTransferCategoryButton(interaction) {
+    try {
+        const ticketId = interaction.customId.replace('ticket_transfercat_', '');
         const ticket = getTicketById(ticketId);
         
         if (!ticket) {
@@ -1191,52 +1395,51 @@ export async function handleTicketPriorityButton(interaction) {
             return interaction.reply({ content: '❌ Ten przycisk nie należy do tego ticketu!', ephemeral: true });
         }
         
+        // Sprawdź uprawnienia supportu
         const supportRole = await interaction.guild.roles.fetch(SUPPORT_ROLE_ID);
         if (!supportRole || !interaction.member.roles.cache.has(supportRole.id)) {
             return interaction.reply({ 
-                content: '❌ Tylko członkowie supportu mogą zmieniać priorytet!', 
+                content: '❌ Tylko członkowie supportu mogą zmieniać kategorię!', 
                 ephemeral: true 
             });
         }
         
-        const priorityEmojis = ['🔴', '🟠', '🟡', '🟢'];
-        const priorityLabels = ['Krytyczny', 'Wysoki', 'Średni', 'Niski'];
-        
+        // Stwórz select menu z kategoriami
         const row = new ActionRowBuilder().addComponents(
             new StringSelectBuilder()
-                .setCustomId(`priority_select_${ticketId}`)
-                .setPlaceholder('Wybierz priorytet...')
+                .setCustomId(`category_transfer_select_${ticketId}`)
+                .setPlaceholder('Wybierz nową kategorię...')
                 .addOptions(
-                    [0, 1, 2, 3].map(p => ({
-                        label: `${priorityLabels[p]} (${p})`,
-                        value: p.toString(),
-                        description: `Priorytet: ${priorityLabels[p]}`,
-                        emoji: priorityEmojis[p]
+                    Object.entries(ticketCategories).map(([key, cat]) => ({
+                        label: cat.name,
+                        value: key,
+                        description: cat.description,
+                        emoji: cat.name.split(' ')[0] // emoji z nazwy
                     }))
                 )
         );
         
         const embed = new EmbedBuilder()
-            .setTitle('⚡ Zmień priorytet ticketu')
+            .setTitle('📁 Zmień kategorię ticketu')
             .setColor(0x5865F2)
-            .setDescription(`Aktualny priorytet: **${formatPriority(ticket.priority)}**`)
-            .setFooter({ text: 'Ticket Priority • BotNexus' })
+            .setDescription(`Aktualna kategoria: **${ticketCategories[ticket.category].name}**`)
+            .setFooter({ text: 'Category Transfer • BotNexus' })
             .setTimestamp();
         
         await interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
         
     } catch (error) {
-        console.error('❌ Błąd priorytetu:', error);
+        console.error('❌ Błąd transferu kategorii:', error);
         await interaction.reply({ content: '❌ Wystąpił błąd!', ephemeral: true });
     }
 }
 
-export async function handleTicketPrioritySelect(interaction) {
+export async function handleCategoryTransferSelect(interaction) {
     try {
-        const ticketId = interaction.customId.replace('priority_select_', '');
-        const newPriority = parseInt(interaction.values[0]);
-        
+        const ticketId = interaction.customId.replace('category_transfer_select_', '');
+        const newCategory = interaction.values[0];
         const ticket = getTicketById(ticketId);
+        
         if (!ticket) {
             return interaction.reply({ content: '❌ Ticket nie znaleziony!', ephemeral: true });
         }
@@ -1244,103 +1447,226 @@ export async function handleTicketPrioritySelect(interaction) {
         const supportRole = await interaction.guild.roles.fetch(SUPPORT_ROLE_ID);
         if (!supportRole || !interaction.member.roles.cache.has(supportRole.id)) {
             return interaction.reply({ 
-                content: '❌ Tylko support może zmieniać priorytet!', 
+                content: '❌ Tylko support może zmieniać kategorię!', 
                 ephemeral: true 
             });
         }
         
-        setTicketPriority(ticketId, newPriority);
+        // Zmień kategorię (użyj istniejącej funkcji, ale bez message object)
+        // Musimy zmodyfikować transferTicketCategory aby przyjmowała interaction
+        const oldCategory = ticket.category;
+        const stmt = db.prepare('UPDATE tickets SET category = ? WHERE id = ?');
+        stmt.run(newCategory, ticketId);
         
         const channel = interaction.guild.channels.cache.get(ticket.channel_id);
         if (channel) {
-            const messages = await channel.messages.fetch({ limit: 50 });
-            const ticketMessage = messages.find(m => 
-                m.embeds.length > 0 && 
-                m.embeds[0].title?.includes(`#${ticketId}`)
-            );
+            const embed = new EmbedBuilder()
+                .setTitle('🔄 Kategoria ticketu zmieniona')
+                .setColor(ticketCategories[newCategory].color)
+                .setDescription(`Ticket #${ticketId} przeniesiony do kategorii **${ticketCategories[newCategory].name}**`)
+                .addFields(
+                    { name: '👤 Zmienił', value: `<@${interaction.user.id}>`, inline: true },
+                    { name: '📂 Stara kategoria', value: ticketCategories[oldCategory].name, inline: true },
+                    { name: '📂 Nowa kategoria', value: ticketCategories[newCategory].name, inline: true }
+                )
+                .setFooter({ text: 'Category Transfer • BotNexus' })
+                .setTimestamp();
             
-            if (ticketMessage) {
-                const embed = ticketMessage.embeds[0];
-                const priorityFieldIndex = embed.data.fields?.findIndex(f => f.name === '⚡ Priorytet');
-                
-                if (priorityFieldIndex !== -1) {
-                    embed.data.fields[priorityFieldIndex].value = formatPriority(newPriority);
-                    await ticketMessage.edit({ embeds: [embed] });
-                }
+            await channel.send({ embeds: [embed] });
+            
+            // Log
+            if (TICKET_LOG_CHANNEL_ID) {
+                const logChannel = interaction.guild.channels.cache.get(TICKET_LOG_CHANNEL_ID);
+                logChannel?.send({ embeds: [embed] }).catch(() => {});
             }
         }
         
-        const embed = new EmbedBuilder()
-            .setTitle('⚡ Priorytet zaktualizowany')
-            .setColor(0x5865F2)
-            .setDescription(`Priorytet ticketu #${ticketId} zmieniony na **${formatPriority(newPriority)}**`)
-            .addFields(
-                { name: '👤 Zmienił', value: `<@${interaction.user.id}>`, inline: true },
-                { name: '📅 Czas', value: `<t:${Math.floor(Date.now() / 1000)}:R>`, inline: true }
-            )
-            .setFooter({ text: 'Priority Updated • BotNexus' })
-            .setTimestamp();
-        
-        await interaction.reply({ embeds: [embed], ephemeral: true });
-        
-        if (TICKET_LOG_CHANNEL_ID) {
-            const logChannel = interaction.guild.channels.cache.get(TICKET_LOG_CHANNEL_ID);
-            if (logChannel) {
-                const logEmbed = new EmbedBuilder()
-                    .setTitle('⚡ Zmiana priorytetu')
-                    .setColor(0x5865F2)
-                    .addFields(
-                        { name: '🎫 Ticket', value: `#${ticketId}`, inline: true },
-                        { name: '👤 Zmienił', value: `<@${interaction.user.id}>`, inline: true },
-                        { name: '📊 Nowy priorytet', value: formatPriority(newPriority), inline: true }
-                    )
-                    .setFooter({ text: 'Ticket Priority Change' })
-                    .setTimestamp();
-                logChannel.send({ embeds: [logEmbed] }).catch(() => {});
-            }
-        }
+        await interaction.message.delete();
+        await interaction.reply({ 
+            content: `✅ Kategoria zmieniona na ${ticketCategories[newCategory].name}`, 
+            ephemeral: true 
+        });
         
     } catch (error) {
-        console.error('❌ Błąd zmiany priorytetu:', error);
+        console.error('❌ Błąd category transfer select:', error);
         await interaction.reply({ content: '❌ Wystąpił błąd!', ephemeral: true });
     }
 }
 
-// Komenda ustawiania priorytetu
-async function setPriorityCommand(message, ticketId, priorityStr) {
+export async function handleQuickResponseSelect(interaction) {
+    try {
+        const ticketId = interaction.customId.replace('quick_select_', '');
+        const responseId = interaction.values[0];
+        const ticket = getTicketById(ticketId);
+        
+        if (!ticket) {
+            return interaction.reply({ content: '❌ Ticket nie znaleziony!', ephemeral: true });
+        }
+        
+        const response = QUICK_RESPONSES.find(r => r.id === responseId);
+        if (!response) {
+            return interaction.reply({ content: '❌ Nieprawidłowa odpowiedź!', ephemeral: true });
+        }
+        
+        const channel = interaction.guild.channels.cache.get(ticket.channel_id);
+        if (channel) {
+            await channel.send({
+                content: response.text,
+                embeds: [new EmbedBuilder()
+                    .setTitle(response.label)
+                    .setColor(0x5865F2)
+                    .setFooter({ text: `Quick Response • ${interaction.user.tag}` })
+                    .setTimestamp()
+                ]
+            });
+        }
+        
+        await interaction.message.delete();
+        await interaction.reply({ content: `✅ Wysłano: "${response.label}"`, ephemeral: true });
+        
+    } catch (error) {
+        console.error('❌ Błąd quick response select:', error);
+        await interaction.reply({ content: '❌ Wystąpił błąd!', ephemeral: true });
+    }
+}
+
+// ========== COOLDOWN / LIMITY ==========
+const userCooldowns = new Map(); // userId -> timestamp next allowed
+
+function checkUserCooldown(userId) {
+    const now = Date.now();
+    const cooldownEnd = userCooldowns.get(userId) || 0;
+    
+    if (now < cooldownEnd) {
+        const remainingMin = Math.ceil((cooldownEnd - now) / 60000);
+        return { allowed: false, remaining: remainingMin };
+    }
+    
+    return { allowed: true };
+}
+
+function setUserCooldown(userId, minutes = 10) {
+    userCooldowns.set(userId, Date.now() + (minutes * 60 * 1000));
+    // Opcjonalnie zapisz do bazy dla trwałości po restarcie
+}
+
+// ========== TAGI ==========
+function addTicketTag(ticketId, tag) {
+    // Pobierz istniejące tagi
+    const ticket = getTicketById(ticketId);
+    if (!ticket) return false;
+    
+    const tags = JSON.parse(ticket.tags || '[]');
+    if (!tags.includes(tag)) {
+        tags.push(tag);
+        const stmt = db.prepare('UPDATE tickets SET tags = ? WHERE id = ?');
+        stmt.run(JSON.stringify(tags), ticketId);
+        return true;
+    }
+    return false;
+}
+
+function removeTicketTag(ticketId, tag) {
+    const ticket = getTicketById(ticketId);
+    if (!ticket) return false;
+    
+    const tags = JSON.parse(ticket.tags || '[]');
+    const idx = tags.indexOf(tag);
+    if (idx > -1) {
+        tags.splice(idx, 1);
+        const stmt = db.prepare('UPDATE tickets SET tags = ? WHERE id = ?');
+        stmt.run(JSON.stringify(tags), ticketId);
+        return true;
+    }
+    return false;
+}
+
+function getTicketTags(ticketId) {
+    const ticket = getTicketById(ticketId);
+    if (!ticket) return [];
+    return JSON.parse(ticket.tags || '[]');
+}
+
+// ========== QUICK ACTIONS / Szybkie odpowiedzi ==========
+const QUICK_RESPONSES = [
+    { id: 'checking', label: '🔍 Sprawdzam...', text: 'Sprawdzam to, chwila...' },
+    { id: 'need_info', label: '❓ Potrzebuję więcej informacji', text: 'Potrzebuję więcej informacji, aby rozwiązać problem.' },
+    { id: 'working_on', label: '🛠️ Pracuję nad tym', text: 'Pracuję nad rozwiązaniem twojego problemu.' },
+    { id: 'will_take_time', label: '⏱️ To zajmie trochę czasu', text: 'To może zająć trochę czasu. Dziękuję za cierpliwość!' },
+    { id: 'almost_done', label: '✅ Już prawie skończone', text: 'Już prawie skończone! Zostało trochę...' },
+    { id: 'closing', label: '🔒 Zamykam ticket', text: 'Ticket zostanie zamknięty. Dziękuję za kontakt!' }
+];
+
+async function sendQuickResponse(interaction, responseId) {
+    const ticketId = interaction.customId.replace('quick_response_', '').replace('_', '');
+    const ticket = getTicketById(ticketId);
+    
+    if (!ticket || ticket.channel_id !== interaction.channel.id) {
+        return interaction.reply({ content: '❌ Ticket nie znaleziony!', ephemeral: true });
+    }
+    
+    const response = QUICK_RESPONSES.find(r => r.id === responseId);
+    if (!response) {
+        return interaction.reply({ content: '❌ Nieprawidłowa odpowiedź!', ephemeral: true });
+    }
+    
+    const channel = interaction.channel;
+    await channel.send({
+        content: response.text,
+        embeds: [new EmbedBuilder()
+            .setTitle(response.label)
+            .setColor(0x5865F2)
+            .setFooter({ text: `Quick Response • ${interaction.user.tag}` })
+            .setTimestamp()
+        ]
+    });
+    
+    await interaction.reply({ content: `✅ Wysłano: "${response.label}"`, ephemeral: true });
+}
+
+// ========== TRANSFER KATEGORII ==========
+async function transferTicketCategory(message, ticketId, newCategory) {
     if (!message.guild) return;
-    
-    // Sprawdź uprawnienia
-    const supportRole = await message.guild.roles.fetch(SUPPORT_ROLE_ID).catch(() => null);
-    if (!supportRole || !message.member.roles.cache.has(supportRole.id)) {
-        return message.reply('❌ Tylko support może zmieniać priorytety!');
-    }
-    
-    const priority = parseInt(priorityStr);
-    if (isNaN(priority) || priority < 0 || priority > 3) {
-        return message.reply('❌ Nieprawidłowy priorytet! Użyj wartości 0-3 (0=Krytyczny, 1=Wysoki, 2=Średni, 3=Niski)');
-    }
     
     const ticket = getTicketById(ticketId);
     if (!ticket) {
         return message.reply('❌ Ticket nie znaleziony!');
     }
     
-    const oldPriority = ticket.priority;
-    setTicketPriority(ticketId, priority);
+    // Sprawdź uprawnienia
+    const supportRole = await message.guild.roles.fetch(SUPPORT_ROLE_ID).catch(() => null);
+    if (!supportRole || !message.member.roles.cache.has(supportRole.id)) {
+        return message.reply('❌ Tylko support może zmieniać kategorie!');
+    }
     
-    const embed = new EmbedBuilder()
-        .setTitle('⚡ Priorytet zmieniony')
-        .setColor(0x5865F2)
-        .setDescription(`Ticket #${ticketId}\nPriorytet: ${formatPriority(oldPriority)} → ${formatPriority(priority)}`)
-        .addFields(
-            { name: '👤 Zmienił', value: `<@${message.author.id}>`, inline: true },
-            { name: '📅 Czas', value: `<t:${Math.floor(Date.now() / 1000)}:R>`, inline: true }
-        )
-        .setFooter({ text: 'Priority Change • BotNexus' })
-        .setTimestamp();
+    if (!ticketCategories[newCategory]) {
+        return message.reply('❌ Nieprawidłowa kategoria! Dostępne: ' + Object.keys(ticketCategories).join(', '));
+    }
     
-    await message.reply({ embeds: [embed] });
+    const oldCategory = ticket.category;
+    
+    // Aktualizuj bazę
+    const stmt = db.prepare('UPDATE tickets SET category = ? WHERE id = ?');
+    stmt.run(newCategory, ticketId);
+    
+    // Znajdź kanał i zaktualizuj embed
+    const channel = await message.guild.channels.fetch(ticket.channel_id).catch(() => null);
+    if (channel) {
+        // Zmień nazwę kanału opcjonalnie lub dodaj informację w embed
+        const embed = new EmbedBuilder()
+            .setTitle('🔄 Kategoria ticketu zmieniona')
+            .setColor(ticketCategories[newCategory].color)
+            .setDescription(`Ticket #${ticketId} przeniesiony do kategorii **${ticketCategories[newCategory].name}**`)
+            .addFields(
+                { name: '👤 Zmienił', value: `<@${message.author.id}>`, inline: true },
+                { name: '📂 Stara kategoria', value: ticketCategories[oldCategory].name, inline: true },
+                { name: '📂 Nowa kategoria', value: ticketCategories[newCategory].name, inline: true }
+            )
+            .setFooter({ text: 'Category Transfer • BotNexus' })
+            .setTimestamp();
+        
+        await channel.send({ embeds: [embed] });
+    }
     
     // Log
     if (TICKET_LOG_CHANNEL_ID) {
@@ -1349,10 +1675,172 @@ async function setPriorityCommand(message, ticketId, priorityStr) {
             logChannel.send({ embeds: [embed] }).catch(() => {});
         }
     }
+    
+    return message.reply(`✅ Kategoria ticketu #${ticketId} zmieniona na ${ticketCategories[newCategory].name}`);
 }
 
-// Dodaj notatkę do ticketu
-async function addNote(message, ticketId, content) {
+// ========== EXPORT CSV ==========
+function exportTicketsToCSV(guildId) {
+    const stmt = db.prepare('SELECT * FROM tickets WHERE guild_id = ? ORDER BY created_at DESC');
+    const tickets = stmt.all(guildId);
+    
+    if (tickets.length === 0) return null;
+    
+    // CSV header
+    let csv = 'ID,ChannelID,UserID,Category,Priority,Status,CreatedAt,ClosedAt,Rating\n';
+    
+    for (const t of tickets) {
+        const createdAt = new Date(t.created_at).toISOString();
+        const closedAt = t.closed_at ? new Date(t.closed_at).toISOString() : '';
+        
+        csv += `${t.id},${t.channel_id},${t.user_id},${t.category},${t.priority},${t.status},${createdAt},${closedAt},${t.rating || ''}\n`;
+    }
+    
+    return Buffer.from(csv, 'utf-8');
+}
+
+// Funkcja pomocnicza do odświeżania embedu ticketu (używana w claim/transfer/priority)
+async function refreshTicketEmbed(channel, ticketId) {
+    try {
+        const messages = await channel.messages.fetch({ limit: 50 });
+        const ticketMessage = messages.find(m => 
+            m.embeds.length > 0 && 
+            m.embeds[0].title?.includes(`#${ticketId}`)
+        );
+        
+        if (ticketMessage) {
+            const ticket = getTicketById(ticketId);
+            if (!ticket) return;
+            
+            const embed = ticketMessage.embeds[0];
+            const categoryData = ticketCategories[ticket.category];
+            
+            // Znajdź i zaktualizuj pola
+            embed.data.title = `${categoryData.name} #${ticketId}`;
+            embed.data.color = categoryData.color;
+            
+            // Zaktualizuj status i priorytet jeśli istnieją
+            const statusIndex = embed.data.fields?.findIndex(f => f.name === '📊 Status');
+            if (statusIndex !== -1) {
+                embed.data.fields[statusIndex].value = formatStatus(ticket.status);
+            }
+            
+            const priorityIndex = embed.data.fields?.findIndex(f => f.name === '⚡ Priorytet');
+            if (priorityIndex !== -1) {
+                embed.data.fields[priorityIndex].value = formatPriority(ticket.priority);
+            }
+            
+            await ticketMessage.edit({ embeds: [embed] });
+        }
+    } catch (err) {
+        console.error('❌ Błąd odświeżania embedu:', err);
+    }
+}
+
+// ========== WERYFIKACJA PRZED TWORZENIEM ==========
+async function validateTicketCreation(interaction, userId, guildId) {
+    // Cooldown
+    const cooldown = checkUserCooldown(userId);
+    if (!cooldown.allowed) {
+        return {
+            allowed: false,
+            message: `⏳ Musisz poczekać jeszcze **${cooldown.remaining} minut** przed utworzeniem nowego ticketu.`
+        };
+    }
+    
+    // Max ticketów (już jest check w handleTicketButton - 5 ticketów)
+    
+    // Sprawdź czy user nie ma już ticketu w tym samym kanał (duplikat)
+    const existingTickets = getUserTickets(userId, guildId);
+    
+    return { allowed: true };
+}
+
+// ========== NOTYFIKACJE PRIVATE MESSAGE ==========
+async function sendTicketClosedPM(ticket, closerId, guild) {
+    try {
+        const user = await guild.members.fetch(ticket.user_id).catch(() => null);
+        if (!user) return;
+        
+        const embed = new EmbedBuilder()
+            .setTitle('🔒 Ticket zamknięty')
+            .setColor(0xED4245)
+            .setDescription(`Twój ticket **#${ticket.id}** został zamknięty.`)
+            .addFields(
+                { name: '📂 Kategoria', value: ticketCategories[ticket.category]?.name || ticket.category, inline: true },
+                { name: '📅 Zamknięty', value: `<t:${Math.floor(Date.now() / 1000)}:R>`, inline: true },
+                { name: '👤 Zamknął', value: closerId ? `<@${closerId}>` : 'System', inline: true }
+            )
+            .setFooter({ text: 'BotNexus • Dziękujemy za kontakt!' })
+            .setTimestamp();
+        
+        if (ticket.rating) {
+            embed.addFields({ name: '⭐ Twoja ocena', value: `${ticket.rating}/5`, inline: true });
+        }
+        
+        // Wyślij DM (nie wszystkie API mają włączone DM)
+        await user.send({ 
+            content: 'Twój ticket został zamknięty! Oto podsumowanie:', 
+            embeds: [embed] 
+        }).catch(() => {
+            // User ma wyłączone DM - ignore
+        });
+    } catch (err) {
+        console.error('❌ Błąd wysyłania PM:', err);
+    }
+}
+
+// ========== STATYSTYKI rozszerzone ==========
+function getTicketStats(guildId) {
+    const stmt = db.prepare(`
+        SELECT 
+            COUNT(*) as total,
+            SUM(CASE WHEN status = 'open' THEN 1 ELSE 0 END) as open,
+            SUM(CASE WHEN status = 'claimed' THEN 1 ELSE 0 END) as claimed,
+            SUM(CASE WHEN status = 'waiting_for_user' THEN 1 ELSE 0 END) as waiting,
+            SUM(CASE WHEN status = 'closed' THEN 1 ELSE 0 END) as closed,
+            AVG(rating) as avg_rating,
+            AVG(COALESCE(rating, 0)) as avg_rating_all
+        FROM tickets WHERE guild_id = ?
+    `);
+    return stmt.get(guildId);
+}
+
+function getTopSupporters(guildId, limit = 5) {
+    const stmt = db.prepare(`
+        SELECT claimed_by, COUNT(*) as count, AVG(rating) as avg_rating
+        FROM tickets 
+        WHERE guild_id = ? AND status = 'closed' AND claimed_by IS NOT NULL
+        GROUP BY claimed_by 
+        ORDER BY count DESC 
+        LIMIT ?
+    `);
+    return stmt.all(guildId, limit);
+}
+
+// ========== CLEANUP ==========
+function cleanupOldTickets(days = 30) {
+    const cutoff = Date.now() - (days * 24 * 60 * 60 * 1000);
+    const stmt = db.prepare('DELETE FROM tickets WHERE created_at < ? AND status = "closed"');
+    const result = stmt.run(cutoff);
+    return result.changes; // liczba usuniętych
+}
+
+// Eksport funkcji do użycia w innych modułach
+export { 
+    startEscalationTimer, 
+    sendEscalationAlert,
+    checkUserCooldown, 
+    setUserCooldown,
+    addTicketTag,
+    removeTicketTag,
+    getTicketTags,
+    sendTicketClosedPM,
+    getTicketStats,
+    getTopSupporters,
+    cleanupOldTickets,
+    QUICK_RESPONSES
+};
     if (!message.guild) return;
     
     const supportRole = await message.guild.roles.fetch(SUPPORT_ROLE_ID).catch(() => null);
@@ -1402,6 +1890,202 @@ async function runAutoClose(message, targetGuildId) {
     } catch (err) {
         console.error('❌ Błąd auto-close:', err);
         return message.reply('❌ Wystąpił błąd podczas auto-close!');
+    }
+}
+
+// ========== KOMENDY TEKSTOWE - TAGI ==========
+async function addTagCommand(message, ticketId, tag) {
+    if (!message.guild) return;
+    
+    const ticket = getTicketById(ticketId);
+    if (!ticket) {
+        return message.reply('❌ Ticket nie znaleziony!');
+    }
+    
+    const supportRole = await message.guild.roles.fetch(SUPPORT_ROLE_ID).catch(() => null);
+    if (!supportRole || !message.member.roles.cache.has(supportRole.id)) {
+        return message.reply('❌ Tylko support może dodawać tagi!');
+    }
+    
+    if (addTicketTag(ticketId, tag.toLowerCase())) {
+        const embed = new EmbedBuilder()
+            .setTitle('🏷️ Tag dodany')
+            .setColor(0x5865F2)
+            .setDescription(`Dodano tag \`${tag}\` do ticketu #${ticketId}`)
+            .addFields(
+                { name: '👤 Dodał', value: `<@${message.author.id}>`, inline: true },
+                { name: '📅 Czas', value: `<t:${Math.floor(Date.now() / 1000)}:R>`, inline: true }
+            )
+            .setFooter({ text: 'Tag Added • BotNexus' })
+            .setTimestamp();
+        
+        await message.reply({ embeds: [embed] });
+        
+        // Log
+        if (TICKET_LOG_CHANNEL_ID) {
+            const logChannel = message.guild.channels.cache.get(TICKET_LOG_CHANNEL_ID);
+            logChannel?.send({ embeds: [embed] }).catch(() => {});
+        }
+    } else {
+        return message.reply('⚠️ Ten tag już istnieje w tym tickecie!');
+    }
+}
+
+async function removeTagCommand(message, ticketId, tag) {
+    if (!message.guild) return;
+    
+    const ticket = getTicketById(ticketId);
+    if (!ticket) {
+        return message.reply('❌ Ticket nie znaleziony!');
+    }
+    
+    const supportRole = await message.guild.roles.fetch(SUPPORT_ROLE_ID).catch(() => null);
+    if (!supportRole || !message.member.roles.cache.has(supportRole.id)) {
+        return message.reply('❌ Tylko support może usuwać tagi!');
+    }
+    
+    if (removeTicketTag(ticketId, tag.toLowerCase())) {
+        const embed = new EmbedBuilder()
+            .setTitle('🏷️ Tag usunięty')
+            .setColor(0xED4245)
+            .setDescription(`Usunięto tag \`${tag}\` z ticketu #${ticketId}`)
+            .addFields(
+                { name: '👤 Usunął', value: `<@${message.author.id}>`, inline: true },
+                { name: '📅 Czas', value: `<t:${Math.floor(Date.now() / 1000)}:R>`, inline: true }
+            )
+            .setFooter({ text: 'Tag Removed • BotNexus' })
+            .setTimestamp();
+        
+        await message.reply({ embeds: [embed] });
+        
+        // Log
+        if (TICKET_LOG_CHANNEL_ID) {
+            const logChannel = message.guild.channels.cache.get(TICKET_LOG_CHANNEL_ID);
+            logChannel?.send({ embeds: [embed] }).catch(() => {});
+        }
+    } else {
+        return message.reply('⚠️ Ten tag nie istnieje w tym tickecie!');
+    }
+}
+
+// ========== KOMENDY TEKSTOWE - QUICK RESPONSES ==========
+async function sendQuickResponseCommand(message, responseId) {
+    if (!message.guild) return;
+    
+    const supportRole = await message.guild.roles.fetch(SUPPORT_ROLE_ID).catch(() => null);
+    if (!supportRole || !message.member.roles.cache.has(supportRole.id)) {
+        return message.reply('❌ Tylko support może używać Quick Responses!');
+    }
+    
+    // Sprawdź czy to komenda w kanałach ticketów (opcjonalnie)
+    const channel = message.channel;
+    const ticket = getTicketByChannel(channel.id);
+    
+    if (!ticket) {
+        return message.reply('❌ Ta komenda działa tylko w kanałach ticketów!');
+    }
+    
+    const response = QUICK_RESPONSES.find(r => r.id === responseId);
+    if (!response) {
+        return message.reply('❌ Nieprawidłowa odpowiedź! Dostępne: ' + QUICK_RESPONSES.map(r => r.id).join(', '));
+    }
+    
+    await channel.send({
+        content: response.text,
+        embeds: [new EmbedBuilder()
+            .setTitle(response.label)
+            .setColor(0x5865F2)
+            .setFooter({ text: `Quick Response • ${message.author.tag}` })
+            .setTimestamp()
+        ]
+    });
+    
+    return message.reply(`✅ Wysłano: "${response.label}"`);
+}
+
+// ========== KOMENDY TEKSTOWE - TRANSFER KATEGORII ==========
+async function transferTicketCategory(message, ticketId, newCategory) {
+    if (!message.guild) return;
+    
+    const ticket = getTicketById(ticketId);
+    if (!ticket) {
+        return message.reply('❌ Ticket nie znaleziony!');
+    }
+    
+    // Sprawdź uprawnienia
+    const supportRole = await message.guild.roles.fetch(SUPPORT_ROLE_ID).catch(() => null);
+    if (!supportRole || !message.member.roles.cache.has(supportRole.id)) {
+        return message.reply('❌ Tylko support może zmieniać kategorie!');
+    }
+    
+    if (!ticketCategories[newCategory]) {
+        return message.reply('❌ Nieprawidłowa kategoria! Dostępne: ' + Object.keys(ticketCategories).join(', '));
+    }
+    
+    const oldCategory = ticket.category;
+    
+    // Aktualizuj bazę
+    const stmt = db.prepare('UPDATE tickets SET category = ? WHERE id = ?');
+    stmt.run(newCategory, ticketId);
+    
+    // Znajdź kanał i zaktualizuj embed
+    const channel = await message.guild.channels.fetch(ticket.channel_id).catch(() => null);
+    if (channel) {
+        const embed = new EmbedBuilder()
+            .setTitle('🔄 Kategoria ticketu zmieniona')
+            .setColor(ticketCategories[newCategory].color)
+            .setDescription(`Ticket #${ticketId} przeniesiony do kategorii **${ticketCategories[newCategory].name}**`)
+            .addFields(
+                { name: '👤 Zmienił', value: `<@${message.author.id}>`, inline: true },
+                { name: '📂 Stara kategoria', value: ticketCategories[oldCategory].name, inline: true },
+                { name: '📂 Nowa kategoria', value: ticketCategories[newCategory].name, inline: true }
+            )
+            .setFooter({ text: 'Category Transfer • BotNexus' })
+            .setTimestamp();
+        
+        await channel.send({ embeds: [embed] });
+    }
+    
+    // Log
+    if (TICKET_LOG_CHANNEL_ID) {
+        const logChannel = message.guild.channels.cache.get(TICKET_LOG_CHANNEL_ID);
+        if (logChannel) {
+            logChannel.send({ embeds: [embed] }).catch(() => {});
+        }
+    }
+    
+    return message.reply(`✅ Kategoria ticketu #${ticketId} zmieniona na ${ticketCategories[newCategory].name}`);
+}
+
+// ========== KOMENDY TEKSTOWE - EXPORT ==========
+async function exportTicketsCommand(message) {
+    if (!message.member.permissions.has(PermissionFlagsBits.Administrator)) {
+        return message.reply('❌ Tylko administratorzy mogą eksportować ticketów!');
+    }
+    
+    if (!message.guild) return;
+    
+    const csvBuffer = exportTicketsToCSV(message.guild.id);
+    if (!csvBuffer) {
+        return message.reply('❌ Brak ticketów do eksportu!');
+    }
+    
+    await message.reply({
+        content: '📊 Eksport wszystkich ticketów (CSV):',
+        files: [{
+            attachment: csvBuffer,
+            name: `tickets-export-${message.guild.id}-${Date.now()}.csv`
+        }]
+    });
+}
+
+// ========== KOMENDY TEKSTOWE - COOLDOWN ==========
+async function checkUserCooldownCommand(message, userId) {
+    const cooldown = checkUserCooldown(userId);
+    if (cooldown.allowed) {
+        return message.reply('✅ Możesz utworzyć nowy ticket. Brak aktywnych cooldownów.');
+    } else {
+        return message.reply(`⏳ Musisz poczekać jeszcze **${cooldown.remaining} minut** przed utworzeniem nowego ticketu.`);
     }
 }
 

@@ -20,27 +20,28 @@ const db = new Database(dbPath);
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 
-// Inicjalizacja tabel
-db.exec(`
-    CREATE TABLE IF NOT EXISTS tickets (
-        id TEXT PRIMARY KEY,
-        channel_id TEXT NOT NULL,
-        guild_id TEXT NOT NULL,
-        user_id TEXT NOT NULL,
-        category TEXT NOT NULL,
-        priority INTEGER DEFAULT 2,
-        status TEXT DEFAULT 'open',
-        claimed_by TEXT DEFAULT NULL,
-        claim_time INTEGER DEFAULT NULL,
-        created_at INTEGER NOT NULL,
-        closed_at INTEGER DEFAULT NULL,
-        closed_by TEXT DEFAULT NULL,
-        close_reason TEXT DEFAULT NULL,
-        rating INTEGER DEFAULT NULL,
-        rating_comment TEXT DEFAULT NULL,
-        last_activity INTEGER NOT NULL,
-        auto_close_delay INTEGER DEFAULT 86400
-    );
+ // Inicjalizacja tabel
+ db.exec(`
+     CREATE TABLE IF NOT EXISTS tickets (
+         id TEXT PRIMARY KEY,
+         channel_id TEXT NOT NULL,
+         guild_id TEXT NOT NULL,
+         user_id TEXT NOT NULL,
+         category TEXT NOT NULL,
+         priority INTEGER DEFAULT 2,
+         status TEXT DEFAULT 'open',
+         claimed_by TEXT DEFAULT NULL,
+         claim_time INTEGER DEFAULT NULL,
+         created_at INTEGER NOT NULL,
+         closed_at INTEGER DEFAULT NULL,
+         closed_by TEXT DEFAULT NULL,
+         close_reason TEXT DEFAULT NULL,
+         rating INTEGER DEFAULT NULL,
+         rating_comment TEXT DEFAULT NULL,
+         last_activity INTEGER NOT NULL,
+         auto_close_delay INTEGER DEFAULT 86400,
+         tags TEXT DEFAULT '[]'
+     );
 
     CREATE TABLE IF NOT EXISTS ticket_messages (
         id TEXT PRIMARY KEY,
@@ -61,11 +62,14 @@ db.exec(`
         FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE CASCADE
     );
 
-    CREATE INDEX IF NOT EXISTS idx_tickets_user ON tickets(user_id);
-    CREATE INDEX IF NOT EXISTS idx_tickets_channel ON tickets(channel_id);
-    CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets(status);
-    CREATE INDEX IF NOT EXISTS idx_tickets_claimed ON tickets(claimed_by);
-    CREATE INDEX IF NOT EXISTS idx_messages_ticket ON ticket_messages(ticket_id);
-`);
-
-export default db;
+     CREATE INDEX IF NOT EXISTS idx_messages_ticket ON ticket_messages(ticket_id);
+ `);
+ 
+ // Migracja: dodaj kolumnę tags jeśli nie istnieje (dla istniejących baz)
+ try {
+     db.exec("ALTER TABLE tickets ADD COLUMN tags TEXT DEFAULT '[]'");
+ } catch (e) {
+     // Kolumna już istnieje - OK
+ }
+ 
+ export default db;
