@@ -143,11 +143,6 @@ function addTicketNote(ticketId, authorId, content) {
     return noteId;
 }
 
-function setTicketPriority(ticketId, priority) {
-    const stmt = db.prepare('UPDATE tickets SET priority = ? WHERE id = ?');
-    stmt.run(priority, ticketId);
-}
-
 function getInactiveTickets() {
     const now = Date.now();
     const stmt = db.prepare(`
@@ -185,7 +180,6 @@ function formatStatus(status) {
         case 'closed': return '🔴 Zamknięty';
         default: return '❓ Nieznany';
     }
-}
 }
 
 function formatPriority(priority) {
